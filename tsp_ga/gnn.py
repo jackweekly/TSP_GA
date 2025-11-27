@@ -15,10 +15,11 @@ class GraphEncoder(nn.Module):
 
     def forward(self, adj: torch.Tensor, feats: torch.Tensor) -> torch.Tensor:
         # adj: [B,N,N], feats: [B,N,3]
-        h = F.relu(self.in_mlp(feats))
+        h = feats.float()
+        h = F.relu(self.in_mlp(h))
         for layer in self.layers:
             agg = torch.matmul(adj, h) / (adj.sum(dim=-1, keepdim=True) + 1e-6)
-            h = F.relu(layer(agg))
+            h = F.relu(layer(agg.float()))
         g = h.mean(dim=1)
         return self.readout(g)
 
