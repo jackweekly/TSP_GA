@@ -157,7 +157,7 @@ def run(args) -> None:
 
     for g in range(args.generations):
         if args.verbose:
-        print(f"[info] generation {model.generation+1} start")
+            print(f"[info] generation {model.generation+1} start")
         model.step()
         best, score = model.best()
         if best is None:
