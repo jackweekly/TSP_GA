@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Tuple
 
@@ -29,6 +30,11 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig) -> IslandModel:
 
 
 def run(args) -> None:
+    if not args.no_menu:
+        preset = _select_preset()
+        if preset["overrides"] is not None:
+            _apply_overrides(args, preset["overrides"])
+        print(f"[preset] {preset['name']}")
     data_root = Path(args.data_root)
     print(f"[info] loading data from {data_root} (max_nodes={args.max_nodes}, max_instances={args.max_instances})")
     instances = load_data(
@@ -121,7 +127,7 @@ def main():
     parser = argparse.ArgumentParser(description="TSP GA CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search")
+    run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search (interactive menu by default)")
     run_parser.add_argument("--data-root", default="data/tsplib")
     run_parser.add_argument("--generations", type=int, default=3)
     run_parser.add_argument("--population", type=int, default=8)
@@ -152,6 +158,11 @@ def main():
         default=None,
         help="Comma-separated instance names to allow (e.g., berlin52,att48). If set, only these load.",
     )
+    run_parser.add_argument(
+        "--no-menu",
+        action="store_true",
+        help="Skip interactive preset menu and use CLI flags as provided.",
+    )
     run_parser.set_defaults(func=run)
 
     data_parser = subparsers.add_parser("data", help="Inspect current checkpoint")
@@ -164,3 +175,79 @@ def main():
 
 if __name__ == "__main__":
     main()
+PRESETS = [
+    {
+        "name": "Quick small (berlin52/att48)",
+        "desc": "One-shot small instances, 3 gens, pop 8, 1 island",
+        "overrides": {
+            "allow_list": "berlin52,att48",
+            "max_nodes": 100,
+            "max_instances": 5,
+            "generations": 3,
+            "population": 8,
+            "islands": 1,
+            "samples": 1,
+            "max_runtime": 1.0,
+        },
+    },
+    {
+        "name": "Small batch (default)",
+        "desc": "≤500 nodes, up to 25 instances, 3 gens, pop 8",
+        "overrides": {},
+    },
+    {
+        "name": "Medium batch",
+        "desc": "≤1000 nodes, up to 100 instances, 5 gens, pop 12",
+        "overrides": {
+            "max_nodes": 1000,
+            "max_instances": 100,
+            "generations": 5,
+            "population": 12,
+            "samples": 2,
+            "max_runtime": 2.0,
+        },
+    },
+    {
+        "name": "Use CLI args",
+        "desc": "Skip overrides; use provided flags",
+        "overrides": None,
+    },
+]
+
+
+def _select_preset() -> dict:
+    if not sys.stdin.isatty():
+        return PRESETS[1]
+    try:
+        import curses
+    except Exception:
+        return PRESETS[1]
+
+    def _menu(stdscr):
+        curses.curs_set(0)
+        current = 0
+        while True:
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Select run preset (arrow keys, Enter to confirm)")
+            for i, opt in enumerate(PRESETS):
+                prefix = "> " if i == current else "  "
+                stdscr.addstr(i + 2, 0, f"{prefix}{opt['name']} - {opt['desc']}")
+            key = stdscr.getch()
+            if key in (curses.KEY_UP, ord("k")):
+                current = (current - 1) % len(PRESETS)
+            elif key in (curses.KEY_DOWN, ord("j")):
+                current = (current + 1) % len(PRESETS)
+            elif key in (curses.KEY_ENTER, 10, 13):
+                return PRESETS[current]
+
+    try:
+        return curses.wrapper(_menu)
+    except Exception:
+        return PRESETS[1]
+
+
+def _apply_overrides(args, overrides: dict) -> None:
+    if not overrides:
+        return
+    for k, v in overrides.items():
+        setattr(args, k, v)
