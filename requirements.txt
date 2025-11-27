@@ -1,4 +1,4 @@
 numpy
 networkx
-tsplib95
+git+https://github.com/rhgrant10/tsplib95.git
 tqdm
