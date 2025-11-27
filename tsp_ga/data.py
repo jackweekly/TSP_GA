@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import concurrent.futures
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -79,10 +80,11 @@ def load_tsplib_instances(
     max_nodes: Optional[int] = None,
     max_instances: Optional[int] = None,
     allow_list: Optional[List[str]] = None,
+    max_workers: int = 8,
 ) -> List[Instance]:
     tsp_files = sorted(root.glob("*.tsp"))
     allow_set = {name.lower() for name in allow_list} if allow_list else None
-    instances: List[Instance] = []
+    filtered = []
     for p in tsp_files:
         if allow_set and p.stem.lower() not in allow_set:
             continue
@@ -90,9 +92,13 @@ def load_tsplib_instances(
             dim = _read_dimension(p)
             if dim is not None and dim > max_nodes:
                 continue
-        instances.append(load_instance(p))
-        if max_instances is not None and len(instances) >= max_instances:
+        filtered.append(p)
+        if max_instances is not None and len(filtered) >= max_instances:
             break
+    instances: List[Instance] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, len(filtered) or 1)) as ex:
+        for inst in ex.map(load_instance, filtered):
+            instances.append(inst)
     return instances
 
 
