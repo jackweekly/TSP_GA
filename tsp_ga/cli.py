@@ -43,26 +43,8 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig, dist_mats=None,
 
 
 def _choose_instances(instances):
-    instances = sorted(instances, key=lambda inst: (len(inst.graph), inst.name.lower()))
-    if not sys.stdin.isatty():
-        return [instances[0]]
-    print("Select instance(s) by number (comma separated) or press Enter for first:")
-    display = instances[:20]
-    for idx, inst in enumerate(display):
-        print(f"[{idx:02d}] {inst.name:<12} {len(inst.graph):>5} nodes")
-    if len(instances) > len(display):
-        print(f"... ({len(instances) - len(display)} more not shown)")
-    choice = input("Choice: ").strip()
-    if not choice:
-        return [instances[0]]
-    picks = []
-    for part in choice.split(","):
-        part = part.strip()
-        if part.isdigit():
-            i = int(part)
-            if 0 <= i < len(instances):
-                picks.append(instances[i])
-    return picks or [instances[0]]
+    # Use all instances to encourage general algorithms (no user prompt).
+    return instances
 
 
 def run(args) -> None:
