@@ -157,7 +157,7 @@ def run(args) -> None:
 
     for g in range(args.generations):
         if args.verbose:
-            print(f"[info] generation {model.generation+1} start")
+        print(f"[info] generation {model.generation+1} start")
         model.step()
         best, score = model.best()
         if best is None:
@@ -167,6 +167,29 @@ def run(args) -> None:
         if args.verbose:
             print(f"  checkpoint -> {CHECKPOINT_PATH}")
         save_checkpoint(model)
+        if args.continuous:
+            continue
+        if g == args.generations - 1:
+            break
+    # Continuous mode: keep evolving until interrupted.
+    if args.continuous:
+        gen_counter = args.generations
+        try:
+            while True:
+                gen_counter += 1
+                if args.verbose:
+                    print(f"[info] generation {model.generation+1} start")
+                model.step()
+                best, score = model.best()
+                if best is None:
+                    print(f"gen {model.generation}: no valid genome scored yet (score={score})")
+                else:
+                    print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
+                if args.log_top > 0:
+                    _print_island_tops(model, top_k=args.log_top)
+                save_checkpoint(model)
+        except KeyboardInterrupt:
+            print("Continuous run interrupted. Checkpoint saved.")
 
 
 def island_insights(model: IslandModel) -> Tuple[str, str]:
@@ -182,6 +205,14 @@ def island_insights(model: IslandModel) -> Tuple[str, str]:
     best, global_score = model.best()
     header = f"generation={model.generation}, global_best_score={global_score:.2f}, best_ops={best.ops}"
     return header, "\n".join(details)
+
+
+def _print_island_tops(model: IslandModel, top_k: int = 3) -> None:
+    for idx, island in enumerate(model.islands):
+        scored = [(island.evaluate_genome(g), g) for g in island.population]
+        scored.sort(key=lambda x: x[0])
+        tops = ", ".join(f"{s:.1f}:{g.ops}" for s, g in scored[:top_k])
+        print(f"  island {idx}: {tops}")
 
 
 def data(args) -> None:
@@ -239,6 +270,17 @@ def main():
         "--no-menu",
         action="store_true",
         help="Skip interactive preset menu and use CLI flags as provided.",
+    )
+    run_parser.add_argument(
+        "--continuous",
+        action="store_true",
+        help="Run generations indefinitely until interrupted (Ctrl+C).",
+    )
+    run_parser.add_argument(
+        "--log-top",
+        type=int,
+        default=2,
+        help="In continuous mode, log top-k scores per island each generation.",
     )
     run_parser.set_defaults(func=run)
 
