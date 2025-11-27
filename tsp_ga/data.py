@@ -117,6 +117,7 @@ def cache_manifest(instances: List[Instance], cache_path: Path) -> None:
             "path": str(inst.path),
             "optimum": inst.optimum,
             "hash": hash_file(inst.path),
+            "dimension": len(inst.graph),
         }
         for inst in instances
     ]
@@ -145,14 +146,16 @@ def load_data(
                 p = Path(item["path"])
                 if not p.exists():
                     continue
-                inst = load_instance(p)
                 if hash_file(p) != item["hash"]:
                     continue
                 if max_nodes is not None:
-                    dim = len(inst.graph)
-                    if dim > max_nodes:
+                    dim = item.get("dimension") or _read_dimension(p)
+                    if dim is not None and dim > max_nodes:
                         continue
+                inst = load_instance(p)
                 instances.append(inst)
+                if max_instances is not None and len(instances) >= max_instances:
+                    break
             if instances:
                 return instances
     instances = load_tsplib_instances(root, max_nodes=max_nodes, max_instances=max_instances)
