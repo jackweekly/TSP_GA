@@ -10,6 +10,83 @@ from tsp_ga.island import IslandConfig, IslandModel
 
 CHECKPOINT_PATH = Path("checkpoints/island_state.json")
 
+PRESETS = [
+    {
+        "name": "Quick small (berlin52/att48)",
+        "desc": "One-shot small instances, 3 gens, pop 8, 1 island",
+        "overrides": {
+            "allow_list": "berlin52,att48",
+            "max_nodes": 100,
+            "max_instances": 5,
+            "generations": 3,
+            "population": 8,
+            "islands": 1,
+            "samples": 1,
+            "max_runtime": 1.0,
+        },
+    },
+    {
+        "name": "Small batch (default)",
+        "desc": "≤500 nodes, up to 25 instances, 3 gens, pop 8",
+        "overrides": {},
+    },
+    {
+        "name": "Medium batch",
+        "desc": "≤1000 nodes, up to 100 instances, 5 gens, pop 12",
+        "overrides": {
+            "max_nodes": 1000,
+            "max_instances": 100,
+            "generations": 5,
+            "population": 12,
+            "samples": 2,
+            "max_runtime": 2.0,
+        },
+    },
+    {
+        "name": "Use CLI args",
+        "desc": "Skip overrides; use provided flags",
+        "overrides": None,
+    },
+]
+
+
+def _select_preset() -> dict:
+    if not sys.stdin.isatty():
+        return PRESETS[1]
+    try:
+        import curses
+    except Exception:
+        return PRESETS[1]
+
+    def _menu(stdscr):
+        curses.curs_set(0)
+        current = 0
+        while True:
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Select run preset (arrow keys, Enter to confirm)")
+            for i, opt in enumerate(PRESETS):
+                prefix = "> " if i == current else "  "
+                stdscr.addstr(i + 2, 0, f"{prefix}{opt['name']} - {opt['desc']}")
+            key = stdscr.getch()
+            if key in (curses.KEY_UP, ord("k")):
+                current = (current - 1) % len(PRESETS)
+            elif key in (curses.KEY_DOWN, ord("j")):
+                current = (current + 1) % len(PRESETS)
+            elif key in (curses.KEY_ENTER, 10, 13):
+                return PRESETS[current]
+
+    try:
+        return curses.wrapper(_menu)
+    except Exception:
+        return PRESETS[1]
+
+
+def _apply_overrides(args, overrides: dict) -> None:
+    if not overrides:
+        return
+    for k, v in overrides.items():
+        setattr(args, k, v)
+
 
 def save_checkpoint(model: IslandModel, path: Path = CHECKPOINT_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,79 +252,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-PRESETS = [
-    {
-        "name": "Quick small (berlin52/att48)",
-        "desc": "One-shot small instances, 3 gens, pop 8, 1 island",
-        "overrides": {
-            "allow_list": "berlin52,att48",
-            "max_nodes": 100,
-            "max_instances": 5,
-            "generations": 3,
-            "population": 8,
-            "islands": 1,
-            "samples": 1,
-            "max_runtime": 1.0,
-        },
-    },
-    {
-        "name": "Small batch (default)",
-        "desc": "≤500 nodes, up to 25 instances, 3 gens, pop 8",
-        "overrides": {},
-    },
-    {
-        "name": "Medium batch",
-        "desc": "≤1000 nodes, up to 100 instances, 5 gens, pop 12",
-        "overrides": {
-            "max_nodes": 1000,
-            "max_instances": 100,
-            "generations": 5,
-            "population": 12,
-            "samples": 2,
-            "max_runtime": 2.0,
-        },
-    },
-    {
-        "name": "Use CLI args",
-        "desc": "Skip overrides; use provided flags",
-        "overrides": None,
-    },
-]
-
-
-def _select_preset() -> dict:
-    if not sys.stdin.isatty():
-        return PRESETS[1]
-    try:
-        import curses
-    except Exception:
-        return PRESETS[1]
-
-    def _menu(stdscr):
-        curses.curs_set(0)
-        current = 0
-        while True:
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Select run preset (arrow keys, Enter to confirm)")
-            for i, opt in enumerate(PRESETS):
-                prefix = "> " if i == current else "  "
-                stdscr.addstr(i + 2, 0, f"{prefix}{opt['name']} - {opt['desc']}")
-            key = stdscr.getch()
-            if key in (curses.KEY_UP, ord("k")):
-                current = (current - 1) % len(PRESETS)
-            elif key in (curses.KEY_DOWN, ord("j")):
-                current = (current + 1) % len(PRESETS)
-            elif key in (curses.KEY_ENTER, 10, 13):
-                return PRESETS[current]
-
-    try:
-        return curses.wrapper(_menu)
-    except Exception:
-        return PRESETS[1]
-
-
-def _apply_overrides(args, overrides: dict) -> None:
-    if not overrides:
-        return
-    for k, v in overrides.items():
-        setattr(args, k, v)
