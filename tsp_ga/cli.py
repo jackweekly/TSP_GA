@@ -1,6 +1,8 @@
 import argparse
+import concurrent.futures
 import json
 import sys
+import time
 from pathlib import Path
 from typing import List, Tuple
 
@@ -71,8 +73,8 @@ def _load_or_build_dist_mats(instances, devices, cache_dir: Path) -> List[torch.
     cache_dir.mkdir(parents=True, exist_ok=True)
     dist_mats = [None] * len(instances)
 
-    def worker(args):
-        idx, inst = args
+    def worker(idx_inst):
+        idx, inst = idx_inst
         device = devices[idx % len(devices)]
         cache_path = cache_dir / f"{inst.name}.pt"
         if cache_path.exists():
@@ -82,8 +84,8 @@ def _load_or_build_dist_mats(instances, devices, cache_dir: Path) -> List[torch.
             torch.save(mat.cpu(), cache_path)
         dist_mats[idx] = mat.to(device)
 
-    for args in enumerate(instances):
-        worker(args)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(instances))) as ex:
+        list(ex.map(worker, enumerate(instances)))
     return dist_mats
 
 
@@ -93,6 +95,7 @@ def _choose_instances(instances):
 
 
 def run(args) -> None:
+    t0 = time.perf_counter()
     data_root = Path(args.data_root)
     print(f"[info] loading data from {data_root}")
     instances = load_data(data_root)
@@ -101,13 +104,25 @@ def run(args) -> None:
             f"No TSPLIB instances found in {data_root}. "
             "Place .tsp (and optional .opt.tour) files there before running."
         )
-    selected = _choose_instances(instances)
+    # Deduplicate by name.
+    seen = set()
+    selected = []
+    for inst in instances:
+        if inst.name in seen:
+            continue
+        seen.add(inst.name)
+        selected.append(inst)
+    t_load = time.perf_counter()
+    print(f"[info] loaded {len(selected)} instances in {t_load - t0:.2f}s")
     graphs = [inst.graph for inst in selected]
     optima = [inst.optimum for inst in selected]
     device_count = torch.cuda.device_count()
     devices = [torch.device(f"cuda:{i}") for i in range(device_count)] if device_count else [torch.device("cpu")]
     dist_cache = data_root / ".cache"
+    t_cache_start = time.perf_counter()
     dist_mats = _load_or_build_dist_mats(selected, devices, dist_cache)
+    t_cache_end = time.perf_counter()
+    print(f"[info] distance matrices ready in {t_cache_end - t_cache_start:.2f}s (cache: {dist_cache})")
     names = ", ".join(inst.name for inst in selected)
     print(f"[info] using instances: {names} (count={len(graphs)}), devices={devices}")
 
