@@ -237,8 +237,8 @@ def main():
 
     run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search (interactive menu by default)")
     run_parser.add_argument("--data-root", default="data/tsplib")
-    run_parser.add_argument("--generations", type=int, default=3)
-    run_parser.add_argument("--population", type=int, default=8)
+    run_parser.add_argument("--generations", type=int, default=5)
+    run_parser.add_argument("--population", type=int, default=20)
     run_parser.add_argument("--islands", type=int, default=1)
     run_parser.add_argument("--migration-interval", type=int, default=5)
     run_parser.add_argument("--migrants", type=int, default=1)

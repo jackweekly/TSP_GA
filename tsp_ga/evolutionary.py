@@ -8,13 +8,13 @@ from .solvers.genome import Genome
 
 @dataclass
 class EvolutionConfig:
-    population_size: int = 20
-    elite_fraction: float = 0.2
-    mutation_rate: float = 0.3
-    crossover_rate: float = 0.5
+    population_size: int = 30
+    elite_fraction: float = 0.15
+    mutation_rate: float = 0.6
+    crossover_rate: float = 0.7
     max_runtime: float = 5.0
     runtime_weight: float = 0.1
-    evaluation_samples: int = 3
+    evaluation_samples: int = 2
     random_seed: int = 123
 
 

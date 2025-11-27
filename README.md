@@ -22,7 +22,7 @@ make run ARGS="--allow-list berlin52 --max-nodes 100 --max-instances 5 --generat
 ```
 `make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present. By default `make run` limits loading to instances with ≤1000 nodes (change with `--max-nodes` or `--max-instances`).
 
-For faster/safer startup on large TSPLIB mirrors, defaults now load ≤500-node instances and at most 25 files, with evaluation_samples=1, population=8, islands=1, and generations=3 to emphasize quick single-shot improvements. Use `--verbose` to print a preview of loaded instances and checkpoint paths. You can restrict loading to specific instances with `--allow-list berlin52,att48` (comma-separated, names without `.tsp`). An interactive preset menu appears when running `make run` (arrow keys + Enter); use `ARGS="--no-menu ..."` to bypass and supply flags directly. Continuous runs are supported via `--continuous` with per-generation top-k logs (`--log-top`).
+For faster/safer startup on large TSPLIB mirrors, defaults now load ≤500-node instances and at most 25 files, with operator-heavy mutation (population=20 by default) to search for new algorithm compositions. Use `--verbose` to print a preview of loaded instances and checkpoint paths. You can restrict loading to specific instances with `--allow-list berlin52,att48` (comma-separated, names without `.tsp`). An interactive preset menu appears when running `make run` (arrow keys + Enter); use `ARGS="--no-menu ..."` to bypass and supply flags directly. Continuous runs are supported via `--continuous` with per-generation top-k logs (`--log-top`).
 
 ### Stopping runs
 Use `make stop` to send SIGTERM to any `tsp_ga.cli run` processes if they are still active in the background.
