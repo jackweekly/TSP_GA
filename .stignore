@@ -1,5 +1,9 @@
-.git
+(?d).git/
+.git/
 .git/**
+.gitignore
+.gitattributes
+.gitmodules
 .venv
 .venv/**
 __pycache__/
@@ -10,3 +14,4 @@ checkpoints/
 data/tsplib/.cache/
 .DS_Store
 .stfolder
+.stversions
