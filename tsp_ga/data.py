@@ -29,24 +29,34 @@ def hash_file(path: Path, chunk_size: int = 65536) -> str:
     return h.hexdigest()
 
 
-def _load_optimum(opt_path: Path) -> Optional[float]:
-    if not opt_path.exists():
-        return None
-    tour_file = tsplib95.parse(opt_path.read_text())
-    nodes = list(tour_file.tours[0])
-    dist = 0.0
-    inst = tsplib95.load(opt_path.with_suffix(".tsp"))
-    for i in range(len(nodes)):
-        a = nodes[i]
-        b = nodes[(i + 1) % len(nodes)]
-        dist += inst.get_weight(a, b)
-    return float(dist)
+def _solution_candidates(path: Path) -> Iterable[Path]:
+    yield path.with_suffix(".opt.tour")
+    for ext in (".opt.tour", ".opt", ".tour"):
+        yield path.parent / "solutions" / f"{path.stem}{ext}"
+
+
+def _load_optimum(problem, path: Path) -> Optional[float]:
+    for candidate in _solution_candidates(path):
+        if not candidate.exists():
+            continue
+        try:
+            tour_file = tsplib95.parse(candidate.read_text())
+            nodes = list(tour_file.tours[0])
+            dist = 0.0
+            for i in range(len(nodes)):
+                a = nodes[i]
+                b = nodes[(i + 1) % len(nodes)]
+                dist += problem.get_weight(a, b)
+            return float(dist)
+        except Exception:
+            continue
+    return None
 
 
 def load_instance(path: Path) -> Instance:
     problem = tsplib95.load(path)
     graph = problem.get_graph()
-    optimum = _load_optimum(path.with_suffix(".opt.tour"))
+    optimum = _load_optimum(problem, path)
     return Instance(name=problem.name, path=path, graph=graph, optimum=optimum)
 
 
