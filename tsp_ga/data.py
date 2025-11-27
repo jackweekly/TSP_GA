@@ -75,11 +75,17 @@ def load_instance(path: Path) -> Instance:
 
 
 def load_tsplib_instances(
-    root: Path, max_nodes: Optional[int] = None, max_instances: Optional[int] = None
+    root: Path,
+    max_nodes: Optional[int] = None,
+    max_instances: Optional[int] = None,
+    allow_list: Optional[List[str]] = None,
 ) -> List[Instance]:
     tsp_files = sorted(root.glob("*.tsp"))
+    allow_set = {name.lower() for name in allow_list} if allow_list else None
     instances: List[Instance] = []
     for p in tsp_files:
+        if allow_set and p.stem.lower() not in allow_set:
+            continue
         if max_nodes is not None:
             dim = _read_dimension(p)
             if dim is not None and dim > max_nodes:
@@ -136,6 +142,7 @@ def load_data(
     use_cache: bool = True,
     max_nodes: Optional[int] = None,
     max_instances: Optional[int] = None,
+    allow_list: Optional[str] = None,
 ) -> List[Instance]:
     cache_path = root / "manifest.json"
     if use_cache:
@@ -158,7 +165,10 @@ def load_data(
                     break
             if instances:
                 return instances
-    instances = load_tsplib_instances(root, max_nodes=max_nodes, max_instances=max_instances)
+    allow_names = [n.strip() for n in allow_list.split(",")] if allow_list else None
+    instances = load_tsplib_instances(
+        root, max_nodes=max_nodes, max_instances=max_instances, allow_list=allow_names
+    )
     if use_cache:
         cache_manifest(instances, cache_path)
     return instances

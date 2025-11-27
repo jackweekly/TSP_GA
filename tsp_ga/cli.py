@@ -35,6 +35,7 @@ def run(args) -> None:
         data_root,
         max_nodes=args.max_nodes,
         max_instances=args.max_instances,
+        allow_list=args.allow_list,
     )
     dims = [len(inst.graph) for inst in instances]
     with_opt = sum(1 for inst in instances if inst.optimum is not None)
@@ -145,6 +146,12 @@ def main():
     )
     run_parser.add_argument("--fresh", action="store_true", help="Ignore checkpoints")
     run_parser.add_argument("--verbose", action="store_true", help="Print extra debug info")
+    run_parser.add_argument(
+        "--allow-list",
+        type=str,
+        default=None,
+        help="Comma-separated instance names to allow (e.g., berlin52,att48). If set, only these load.",
+    )
     run_parser.set_defaults(func=run)
 
     data_parser = subparsers.add_parser("data", help="Inspect current checkpoint")

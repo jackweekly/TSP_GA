@@ -21,7 +21,7 @@ make data  # prints checkpoint insights (best ops per island, avg scores)
 ```
 `make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present. By default `make run` limits loading to instances with ≤1000 nodes (change with `--max-nodes` or `--max-instances`).
 
-For faster/safer startup on large TSPLIB mirrors, defaults now load ≤500-node instances and at most 100 files. Use `--verbose` to print a preview of loaded instances and checkpoint paths.
+For faster/safer startup on large TSPLIB mirrors, defaults now load ≤500-node instances and at most 100 files. Use `--verbose` to print a preview of loaded instances and checkpoint paths. You can restrict loading to specific instances with `--allow-list berlin52,att48` (comma-separated, names without `.tsp`).
 
 ## Running islands (2×5080 cloud node)
 - Configure per-node island counts and migration in `tsp_ga/island.py` (`IslandConfig`).
