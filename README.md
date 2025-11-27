@@ -16,7 +16,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # populate data/tsplib with .tsp/.opt.tour files (see Data section)
-python -m tsp_ga.examples.run_small_search
+make run   # runs/resumes EA with checkpointing at checkpoints/island_state.json
+make data  # prints checkpoint insights (best ops per island, avg scores)
 ```
 
 ## Running islands (2×5080 cloud node)

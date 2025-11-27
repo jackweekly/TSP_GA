@@ -1,7 +1,7 @@
 import copy
 import random
-from dataclasses import dataclass
-from typing import List
+from dataclasses import asdict, dataclass
+from typing import Dict, List, Optional
 
 from .evolutionary import EvolutionConfig, EvolutionarySearch
 from .solvers.genome import Genome
@@ -51,3 +51,25 @@ class IslandModel:
                 best_genome = genome
                 best_score = score
         return best_genome, best_score
+
+    def to_state(self) -> Dict:
+        return {
+            "cfg": asdict(self.cfg),
+            "generation": self.generation,
+            "islands": [
+                {"population": [g.ops for g in island.population]}
+                for island in self.islands
+            ],
+        }
+
+    @classmethod
+    def from_state(cls, state: Dict, graphs, optima) -> "IslandModel":
+        cfg = IslandConfig(**state["cfg"])
+        model = cls(cfg, graphs, optima)
+        model.generation = state.get("generation", 0)
+        islands_state = state.get("islands", [])
+        for island, island_state in zip(model.islands, islands_state):
+            pop_ops = island_state.get("population", [])
+            if pop_ops:
+                island.population = [Genome(ops=ops) for ops in pop_ops]
+        return model
