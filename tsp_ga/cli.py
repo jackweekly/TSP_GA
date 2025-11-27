@@ -30,6 +30,7 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig) -> IslandModel:
 
 def run(args) -> None:
     data_root = Path(args.data_root)
+    print(f"[info] loading data from {data_root} (max_nodes={args.max_nodes}, max_instances={args.max_instances})")
     instances = load_data(
         data_root,
         max_nodes=args.max_nodes,
@@ -51,10 +52,12 @@ def run(args) -> None:
             f"{inst.name}({len(inst.graph)})" for inst in instances[: min(10, len(instances))]
         )
         print(f"Preview: {preview}")
+        print(f"Split ratios train/val/test default to 70/15/15 via hash.")
     splits = split_by_hash(instances)
     train = splits["train"] or instances
     graphs = [inst.graph for inst in train]
     optima = [inst.optimum for inst in train]
+    print(f"[info] train set size={len(graphs)}")
 
     cfg = IslandConfig(
         population_size=args.population,
@@ -69,6 +72,8 @@ def run(args) -> None:
     model = build_model(graphs, optima, resume=not args.fresh, cfg=cfg)
 
     for g in range(args.generations):
+        if args.verbose:
+            print(f"[info] generation {model.generation+1} start")
         model.step()
         best, score = model.best()
         if best is None:
