@@ -17,6 +17,12 @@ class Genome:
     improve_ops: List[str] = field(default_factory=list)
     diversify_ops: List[str] = field(default_factory=list)
 
+    def __post_init__(self):
+        if isinstance(self.improve_ops, str):
+            self.improve_ops = [self.improve_ops]
+        if isinstance(self.diversify_ops, str):
+            self.diversify_ops = [self.diversify_ops]
+
     @staticmethod
     def random(rng: random.Random, improve_len: int = None, diversify_len: int = None) -> "Genome":
         if improve_len is None:
