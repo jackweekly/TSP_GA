@@ -4,6 +4,7 @@ from typing import Callable, List, Sequence
 
 from .evaluation import Fitness, aggregate_fitness, evaluate_solver
 from .solvers.genome import Genome
+from .gnn import SurrogateManager
 
 
 @dataclass
@@ -39,6 +40,7 @@ class EvolutionarySearch:
         self.population: List[Genome] = [
             Genome.random(self.rng) for _ in range(config.population_size)
         ]
+        self.surrogate = SurrogateManager(device) if device and str(device).startswith("cuda") else None
 
     def evaluate_genome(self, genome: Genome) -> float:
         solver = genome.build_solver()
@@ -59,7 +61,11 @@ class EvolutionarySearch:
                 dist_mat=dist,
             )
             fitnesses.append(fitness)
+            if self.surrogate and dist is not None:
+                self.surrogate.observe(dist, genome.signature, fitness.score)
         agg = aggregate_fitness(fitnesses)
+        if self.surrogate:
+            self.surrogate.train_step()
         return agg["score"]
 
     def step(self) -> None:

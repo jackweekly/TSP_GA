@@ -2,6 +2,7 @@ import random
 from typing import List, Sequence, Tuple
 
 import networkx as nx
+import torch
 
 from .base import Solver, Tour, tour_length
 
@@ -85,6 +86,48 @@ def two_opt(graph: nx.Graph, tour: Tour, max_iter: int = 200) -> Tour:
     return best
 
 
+def torch_two_opt(dist: torch.Tensor, tour: torch.Tensor, max_iter: int = 200) -> torch.Tensor:
+    # tour: 1D long tensor of node indices on device matching dist
+    best = tour.clone()
+    best_len = (dist[best, best.roll(-1)]).sum()
+    n = best.shape[0]
+    for _ in range(max_iter):
+        improved = False
+        for i in range(1, n - 2):
+            for j in range(i + 1, n - 1):
+                if j - i == 1:
+                    continue
+                cand = best.clone()
+                cand[i:j] = torch.flip(cand[i:j], dims=[0])
+                cand_len = (dist[cand, cand.roll(-1)]).sum()
+                if cand_len + 1e-9 < best_len:
+                    best = cand
+                    best_len = cand_len
+                    improved = True
+        if not improved:
+            break
+    return best
+
+
+def torch_three_opt(dist: torch.Tensor, tour: torch.Tensor, max_iter: int = 50) -> torch.Tensor:
+    best = tour.clone()
+    best_len = (dist[best, best.roll(-1)]).sum()
+    n = best.shape[0]
+    for _ in range(max_iter):
+        i, j, k = torch.sort(torch.randint(0, n, (3,), device=dist.device)).values
+        variants = [
+            torch.cat([best[:i], torch.flip(best[i:j], [0]), torch.flip(best[j:k], [0]), best[k:]]),
+            torch.cat([best[:i], best[j:k], best[i:j], best[k:]]),
+            torch.cat([best[:i], torch.flip(best[j:k], [0]), best[i:j], best[k:]]),
+        ]
+        for cand in variants:
+            cand_len = (dist[cand, cand.roll(-1)]).sum()
+            if cand_len + 1e-9 < best_len:
+                best = cand
+                best_len = cand_len
+    return best
+
+
 def three_opt(graph: nx.Graph, tour: Tour, max_iter: int = 50) -> Tour:
     # Simplified 3-opt using random segment swaps.
     best = tour
@@ -113,6 +156,14 @@ def double_bridge(tour: Tour) -> Tour:
     return tour[:a] + tour[c:] + tour[b:c] + tour[a:b]
 
 
+def torch_double_bridge(tour: torch.Tensor) -> torch.Tensor:
+    n = tour.shape[0]
+    if n < 8:
+        return tour
+    a, b, c = torch.sort(torch.randint(1, n - 1, (3,), device=tour.device)).values
+    return torch.cat([tour[:a], tour[c:], tour[b:c], tour[a:b]])
+
+
 def ruin_recreate(graph: nx.Graph, tour: Tour, ruin_frac: float = 0.1) -> Tour:
     n = len(tour)
     ruin_count = max(2, int(n * ruin_frac))
@@ -132,6 +183,28 @@ def ruin_recreate(graph: nx.Graph, tour: Tour, ruin_frac: float = 0.1) -> Tour:
                 best_pos = i + 1
         tour.insert(best_pos, node)
     return tour
+
+
+def torch_ruin_recreate(dist: torch.Tensor, tour: torch.Tensor, ruin_frac: float = 0.1) -> torch.Tensor:
+    n = tour.shape[0]
+    ruin_count = max(2, int(n * ruin_frac))
+    idx = torch.randperm(n, device=dist.device)[:ruin_count]
+    keep_mask = torch.ones(n, dtype=torch.bool, device=dist.device)
+    keep_mask[idx] = False
+    kept = tour[keep_mask].tolist()
+    removed = tour[idx].tolist()
+    for node in removed:
+        best_pos = 0
+        best_inc = float("inf")
+        for i in range(len(kept)):
+            a = kept[i]
+            b = kept[(i + 1) % len(kept)]
+            inc = dist[a, node] + dist[node, b] - dist[a, b]
+            if inc < best_inc:
+                best_inc = inc
+                best_pos = i + 1
+        kept.insert(best_pos, node)
+    return torch.tensor(kept, device=dist.device, dtype=torch.long)
 
 
 class ConstructiveSolver(Solver):
@@ -188,6 +261,7 @@ def apply_improvements(graph: nx.Graph, tour: Tour, ops: List[str]) -> Tour:
 class CompositionSolver(Solver):
     """
     Solver built from phases: construct -> improve -> diversify.
+    Can operate on CPU (networkx) or GPU (torch) if dist_mat provided.
     """
 
     name = "composition"
@@ -196,8 +270,30 @@ class CompositionSolver(Solver):
         self.construct = construct
         self.improve_ops = improve_ops
         self.diversify_ops = diversify_ops
+        self.dist_mat = None  # set externally when GPU matrix available
 
     def solve(self, graph: nx.Graph) -> Tour:
+        if self.dist_mat is not None and torch.is_tensor(self.dist_mat):
+            # GPU path
+            base = torch.tensor(ConstructiveSolver(self.construct).solve(graph), device=self.dist_mat.device)
+            cur = base
+            for op in self.improve_ops:
+                if op == "two_opt":
+                    cur = torch_two_opt(self.dist_mat, cur)
+                elif op == "three_opt":
+                    cur = torch_three_opt(self.dist_mat, cur)
+            for op in self.diversify_ops:
+                if op == "double_bridge":
+                    cur = torch_double_bridge(cur)
+                elif op == "ruin_recreate":
+                    cur = torch_ruin_recreate(self.dist_mat, cur)
+                for imp in self.improve_ops:
+                    if imp == "two_opt":
+                        cur = torch_two_opt(self.dist_mat, cur)
+                    elif imp == "three_opt":
+                        cur = torch_three_opt(self.dist_mat, cur)
+            return cur.tolist()
+        # CPU path
         base = ConstructiveSolver(self.construct).solve(graph)
         improved = apply_improvements(graph, base, self.improve_ops)
         for op in self.diversify_ops:

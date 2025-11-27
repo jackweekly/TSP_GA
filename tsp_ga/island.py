@@ -60,19 +60,35 @@ class IslandModel:
             "cfg": asdict(self.cfg),
             "generation": self.generation,
             "islands": [
-                {"population": [g.ops for g in island.population]}
+                {
+                    "population": [
+                        {
+                            "construct": g.construct,
+                            "improve_ops": g.improve_ops,
+                            "diversify_ops": g.diversify_ops,
+                        }
+                        for g in island.population
+                    ]
+                }
                 for island in self.islands
             ],
         }
 
     @classmethod
-    def from_state(cls, state: Dict, graphs, optima) -> "IslandModel":
+    def from_state(cls, state: Dict, graphs, optima, dist_mats=None, devices=None) -> "IslandModel":
         cfg = IslandConfig(**state["cfg"])
-        model = cls(cfg, graphs, optima)
+        model = cls(cfg, graphs, optima, dist_mats=dist_mats, devices=devices)
         model.generation = state.get("generation", 0)
         islands_state = state.get("islands", [])
         for island, island_state in zip(model.islands, islands_state):
             pop_ops = island_state.get("population", [])
             if pop_ops:
-                island.population = [Genome(ops=ops) for ops in pop_ops]
+                island.population = [
+                    Genome(
+                        construct=item.get("construct", "nearest_neighbor"),
+                        improve_ops=item.get("improve_ops", []),
+                        diversify_ops=item.get("diversify_ops", []),
+                    )
+                    for item in pop_ops
+                ]
         return model

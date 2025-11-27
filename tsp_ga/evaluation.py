@@ -32,6 +32,8 @@ def evaluate_solver(
     runtime_weight: float = 0.1,
     dist_mat: Optional[torch.Tensor] = None,
 ) -> Fitness:
+    if dist_mat is not None and hasattr(solver, "dist_mat"):
+        solver.dist_mat = dist_mat
     start = time.perf_counter()
     tour = solver.solve(graph)
     runtime = time.perf_counter() - start

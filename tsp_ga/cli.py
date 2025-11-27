@@ -15,6 +15,10 @@ CHECKPOINT_PATH = Path("checkpoints/island_state.json")
 def save_checkpoint(model: IslandModel, path: Path = CHECKPOINT_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(model.to_state(), indent=2))
+    # Save surrogate models per island if available.
+    for idx, island in enumerate(model.islands):
+        if hasattr(island, "surrogate") and island.surrogate:
+            island.surrogate.save(path.parent / f"surrogate_{idx}.pt")
 
 
 def load_checkpoint(graphs, optima, path: Path = CHECKPOINT_PATH) -> IslandModel:
@@ -22,12 +26,20 @@ def load_checkpoint(graphs, optima, path: Path = CHECKPOINT_PATH) -> IslandModel
     return IslandModel.from_state(state, graphs, optima)
 
 
-def build_model(graphs, optima, resume: bool, cfg: IslandConfig) -> IslandModel:
+def build_model(graphs, optima, resume: bool, cfg: IslandConfig, dist_mats=None, devices=None) -> IslandModel:
     if resume and CHECKPOINT_PATH.exists():
         print(f"Resuming from {CHECKPOINT_PATH}")
-        return load_checkpoint(graphs, optima, CHECKPOINT_PATH)
-    print("Starting new model")
-    return IslandModel(cfg, graphs, optima)
+        state = json.loads(CHECKPOINT_PATH.read_text())
+        model = IslandModel.from_state(state, graphs, optima, dist_mats=dist_mats, devices=devices)
+    else:
+        print("Starting new model")
+        model = IslandModel(cfg, graphs, optima, dist_mats=dist_mats, devices=devices)
+    # Load surrogate weights if present.
+    for idx, island in enumerate(model.islands):
+        ckpt_path = CHECKPOINT_PATH.parent / f"surrogate_{idx}.pt"
+        if hasattr(island, "surrogate") and island.surrogate and ckpt_path.exists():
+            island.surrogate.load(ckpt_path)
+    return model
 
 
 def _choose_instances(instances):
