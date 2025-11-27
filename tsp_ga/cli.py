@@ -46,6 +46,11 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig, dist_mats=None,
     return model
 
 
+def log(msg: str) -> None:
+    ts = time.strftime("%H:%M:%S")
+    print(f"[{ts}] {msg}", flush=True)
+
+
 def _build_dist_mat(graph: nx.Graph, device: torch.device) -> torch.Tensor:
     nodes = list(graph.nodes())
     idx_map = {n: i for i, n in enumerate(nodes)}
@@ -97,7 +102,7 @@ def _choose_instances(instances):
 def run(args) -> None:
     t0 = time.perf_counter()
     data_root = Path(args.data_root)
-    print(f"[info] loading data from {data_root}")
+    log(f"loading data from {data_root}")
     instances = load_data(data_root)
     if not instances:
         raise RuntimeError(
@@ -113,18 +118,19 @@ def run(args) -> None:
         seen.add(inst.name)
         selected.append(inst)
     t_load = time.perf_counter()
-    print(f"[info] loaded {len(selected)} instances in {t_load - t0:.2f}s")
+    log(f"loaded {len(selected)} instances in {t_load - t0:.2f}s")
     graphs = [inst.graph for inst in selected]
     optima = [inst.optimum for inst in selected]
     device_count = torch.cuda.device_count()
     devices = [torch.device(f"cuda:{i}") for i in range(device_count)] if device_count else [torch.device("cpu")]
     dist_cache = data_root / ".cache"
     t_cache_start = time.perf_counter()
+    log("building/loading distance matrices...")
     dist_mats = _load_or_build_dist_mats(selected, devices, dist_cache)
     t_cache_end = time.perf_counter()
-    print(f"[info] distance matrices ready in {t_cache_end - t_cache_start:.2f}s (cache: {dist_cache})")
+    log(f"distance matrices ready in {t_cache_end - t_cache_start:.2f}s (cache: {dist_cache})")
     names = ", ".join(inst.name for inst in selected)
-    print(f"[info] using instances: {names} (count={len(graphs)}), devices={devices}")
+    log(f"using instances: {names} (count={len(graphs)}), devices={devices}")
 
     cfg = IslandConfig(
         population_size=30,
@@ -138,7 +144,7 @@ def run(args) -> None:
     )
     model = build_model(graphs, optima, resume=True, cfg=cfg, dist_mats=dist_mats, devices=devices)
 
-    print("[info] running continuously; Ctrl+C to stop.")
+    log("running continuously; Ctrl+C to stop.")
     try:
         while True:
             model.step()
