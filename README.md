@@ -18,6 +18,7 @@ pip install -r requirements.txt
 # populate data/tsplib with .tsp/.opt.tour files (see Data section)
 make run   # runs/resumes EA with checkpointing at checkpoints/island_state.json
 make data  # prints checkpoint insights (best ops per island, avg scores)
+make run ARGS="--allow-list berlin52 --max-nodes 100 --max-instances 5 --generations 3 --population 6 --verbose"
 ```
 `make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present. By default `make run` limits loading to instances with ≤1000 nodes (change with `--max-nodes` or `--max-instances`).
 

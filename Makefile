@@ -2,6 +2,7 @@ PYTHON ?= python
 CHECKPOINT ?= checkpoints/island_state.json
 TSPLIB_DIR ?= data/tsplib
 TSPLIB_REPO ?= https://github.com/mastqe/tsplib.git
+ARGS ?=
 
 .PHONY: install run data
 
@@ -27,7 +28,7 @@ install:
 	fi
 
 run:
-	@$(PYTHON) -m tsp_ga.cli run
+	@$(PYTHON) -m tsp_ga.cli run $(ARGS)
 
 data:
 	@$(PYTHON) -m tsp_ga.cli data
