@@ -100,8 +100,14 @@ class SurrogateManager:
         self.model.train()
         batch = random.sample(self.buffer, batch_size)
         adjs, feats, ops, ys = zip(*batch)
-        adjs = torch.stack(adjs)
-        feats = torch.stack(feats)
+        max_n = max(a.shape[-1] for a in adjs)
+        def pad(t, target):
+            if t.shape[-1] == target:
+                return t
+            pad_amt = target - t.shape[-1]
+            return F.pad(t, (0, pad_amt, 0, pad_amt))
+        adjs = torch.stack([pad(a, max_n) for a in adjs])
+        feats = torch.stack([F.pad(f, (0, 0, 0, max_n - f.shape[0])) for f in feats])
         ops = torch.stack(ops)
         ys = torch.cat(ys)
         pred = self.model(adjs, feats, ops)
