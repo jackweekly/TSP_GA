@@ -10,83 +10,6 @@ from tsp_ga.island import IslandConfig, IslandModel
 
 CHECKPOINT_PATH = Path("checkpoints/island_state.json")
 
-PRESETS = [
-    {
-        "name": "Quick small (berlin52/att48)",
-        "desc": "One-shot small instances, 3 gens, pop 8, 1 island",
-        "overrides": {
-            "allow_list": "berlin52,att48",
-            "max_nodes": 100,
-            "max_instances": 5,
-            "generations": 3,
-            "population": 8,
-            "islands": 1,
-            "samples": 1,
-            "max_runtime": 1.0,
-        },
-    },
-    {
-        "name": "Small batch (default)",
-        "desc": "≤500 nodes, up to 25 instances, 3 gens, pop 8",
-        "overrides": {},
-    },
-    {
-        "name": "Medium batch",
-        "desc": "≤1000 nodes, up to 100 instances, 5 gens, pop 12",
-        "overrides": {
-            "max_nodes": 1000,
-            "max_instances": 100,
-            "generations": 5,
-            "population": 12,
-            "samples": 2,
-            "max_runtime": 2.0,
-        },
-    },
-    {
-        "name": "Use CLI args",
-        "desc": "Skip overrides; use provided flags",
-        "overrides": None,
-    },
-]
-
-
-def _select_preset() -> dict:
-    if not sys.stdin.isatty():
-        return PRESETS[1]
-    try:
-        import curses
-    except Exception:
-        return PRESETS[1]
-
-    def _menu(stdscr):
-        curses.curs_set(0)
-        current = 0
-        while True:
-            stdscr.clear()
-            stdscr.addstr(0, 0, "Select run preset (arrow keys, Enter to confirm)")
-            for i, opt in enumerate(PRESETS):
-                prefix = "> " if i == current else "  "
-                stdscr.addstr(i + 2, 0, f"{prefix}{opt['name']} - {opt['desc']}")
-            key = stdscr.getch()
-            if key in (curses.KEY_UP, ord("k")):
-                current = (current - 1) % len(PRESETS)
-            elif key in (curses.KEY_DOWN, ord("j")):
-                current = (current + 1) % len(PRESETS)
-            elif key in (curses.KEY_ENTER, 10, 13):
-                return PRESETS[current]
-
-    try:
-        return curses.wrapper(_menu)
-    except Exception:
-        return PRESETS[1]
-
-
-def _apply_overrides(args, overrides: dict) -> None:
-    if not overrides:
-        return
-    for k, v in overrides.items():
-        setattr(args, k, v)
-
 
 def save_checkpoint(model: IslandModel, path: Path = CHECKPOINT_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,90 +29,70 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig) -> IslandModel:
     return IslandModel(cfg, graphs, optima)
 
 
+def _choose_instances(instances, allow_list: str = None):
+    if allow_list:
+        names = {n.strip().lower() for n in allow_list.split(",")}
+        filtered = [inst for inst in instances if inst.name.lower() in names]
+        if filtered:
+            return filtered
+    if not sys.stdin.isatty():
+        return [instances[0]]
+    print("Select instance(s) by number (comma separated) or press Enter for first:")
+    for idx, inst in enumerate(instances[:30]):
+        print(f"[{idx}] {inst.name} ({len(inst.graph)} nodes)")
+    choice = input("Choice: ").strip()
+    if not choice:
+        return [instances[0]]
+    picks = []
+    for part in choice.split(","):
+        part = part.strip()
+        if part.isdigit():
+            i = int(part)
+            if 0 <= i < len(instances):
+                picks.append(instances[i])
+    return picks or [instances[0]]
+
+
 def run(args) -> None:
-    if not args.no_menu:
-        preset = _select_preset()
-        if preset["overrides"] is not None:
-            _apply_overrides(args, preset["overrides"])
-        print(f"[preset] {preset['name']}")
     data_root = Path(args.data_root)
-    print(f"[info] loading data from {data_root} (max_nodes={args.max_nodes}, max_instances={args.max_instances})")
-    instances = load_data(
-        data_root,
-        max_nodes=args.max_nodes,
-        max_instances=args.max_instances,
-        allow_list=args.allow_list,
-    )
-    dims = [len(inst.graph) for inst in instances]
-    with_opt = sum(1 for inst in instances if inst.optimum is not None)
+    print(f"[info] loading data from {data_root}")
+    instances = load_data(data_root)
     if not instances:
         raise RuntimeError(
             f"No TSPLIB instances found in {data_root}. "
             "Place .tsp (and optional .opt.tour) files there before running."
         )
-    print(
-        f"Loaded {len(instances)} instances "
-        f"(nodes: min={min(dims)} max={max(dims)}, optima={with_opt}/{len(instances)})"
-    )
-    if args.verbose:
-        preview = ", ".join(
-            f"{inst.name}({len(inst.graph)})" for inst in instances[: min(10, len(instances))]
-        )
-        print(f"Preview: {preview}")
-        print(f"Split ratios train/val/test default to 70/15/15 via hash.")
-    splits = split_by_hash(instances)
-    train = splits["train"] or instances
-    graphs = [inst.graph for inst in train]
-    optima = [inst.optimum for inst in train]
-    print(f"[info] train set size={len(graphs)}")
+    selected = _choose_instances(instances, allow_list=args.allow_list)
+    graphs = [inst.graph for inst in selected]
+    optima = [inst.optimum for inst in selected]
+    names = ", ".join(inst.name for inst in selected)
+    print(f"[info] using instances: {names} (count={len(graphs)})")
 
     cfg = IslandConfig(
-        population_size=args.population,
-        islands=args.islands,
-        migration_interval=args.migration_interval,
-        migrants=args.migrants,
-        evaluation_samples=args.samples,
-        max_runtime=args.max_runtime,
-        runtime_weight=args.runtime_weight,
+        population_size=30,
+        islands=2,
+        migration_interval=5,
+        migrants=2,
+        evaluation_samples=1,
+        max_runtime=1.0,
+        runtime_weight=0.1,
         random_seed=args.seed,
     )
     model = build_model(graphs, optima, resume=not args.fresh, cfg=cfg)
 
-    for g in range(args.generations):
-        if args.verbose:
-            print(f"[info] generation {model.generation+1} start")
-        model.step()
-        best, score = model.best()
-        if best is None:
-            print(f"gen {model.generation}: no valid genome scored yet (score={score})")
-        else:
-            print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
-        if args.verbose:
-            print(f"  checkpoint -> {CHECKPOINT_PATH}")
-        save_checkpoint(model)
-        if args.continuous:
-            continue
-        if g == args.generations - 1:
-            break
-    # Continuous mode: keep evolving until interrupted.
-    if args.continuous:
-        gen_counter = args.generations
-        try:
-            while True:
-                gen_counter += 1
-                if args.verbose:
-                    print(f"[info] generation {model.generation+1} start")
-                model.step()
-                best, score = model.best()
-                if best is None:
-                    print(f"gen {model.generation}: no valid genome scored yet (score={score})")
-                else:
-                    print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
-                if args.log_top > 0:
-                    _print_island_tops(model, top_k=args.log_top)
-                save_checkpoint(model)
-        except KeyboardInterrupt:
-            print("Continuous run interrupted. Checkpoint saved.")
+    print("[info] running continuously; Ctrl+C to stop.")
+    try:
+        while True:
+            model.step()
+            best, score = model.best()
+            if best is None:
+                print(f"gen {model.generation}: no valid genome scored yet (score={score})")
+            else:
+                print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
+            _print_island_tops(model, top_k=3)
+            save_checkpoint(model)
+    except KeyboardInterrupt:
+        print("Interrupted. Checkpoint saved.")
 
 
 def island_insights(model: IslandModel) -> Tuple[str, str]:
@@ -235,29 +138,9 @@ def main():
     parser = argparse.ArgumentParser(description="TSP GA CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search (interactive menu by default)")
+    run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search (continuous, two islands)")
     run_parser.add_argument("--data-root", default="data/tsplib")
-    run_parser.add_argument("--generations", type=int, default=5)
-    run_parser.add_argument("--population", type=int, default=20)
-    run_parser.add_argument("--islands", type=int, default=1)
-    run_parser.add_argument("--migration-interval", type=int, default=5)
-    run_parser.add_argument("--migrants", type=int, default=1)
-    run_parser.add_argument("--samples", type=int, default=1, help="Evaluation samples per genome")
-    run_parser.add_argument("--max-runtime", type=float, default=1.0)
-    run_parser.add_argument("--runtime-weight", type=float, default=0.1)
     run_parser.add_argument("--seed", type=int, default=123)
-    run_parser.add_argument(
-        "--max-nodes",
-        type=int,
-        default=500,
-        help="Skip instances with more nodes than this (to avoid huge graphs by default).",
-    )
-    run_parser.add_argument(
-        "--max-instances",
-        type=int,
-        default=25,
-        help="Limit number of instances loaded (None for all).",
-    )
     run_parser.add_argument("--fresh", action="store_true", help="Ignore checkpoints")
     run_parser.add_argument("--verbose", action="store_true", help="Print extra debug info")
     run_parser.add_argument(
@@ -265,22 +148,6 @@ def main():
         type=str,
         default=None,
         help="Comma-separated instance names to allow (e.g., berlin52,att48). If set, only these load.",
-    )
-    run_parser.add_argument(
-        "--no-menu",
-        action="store_true",
-        help="Skip interactive preset menu and use CLI flags as provided.",
-    )
-    run_parser.add_argument(
-        "--continuous",
-        action="store_true",
-        help="Run generations indefinitely until interrupted (Ctrl+C).",
-    )
-    run_parser.add_argument(
-        "--log-top",
-        type=int,
-        default=2,
-        help="In continuous mode, log top-k scores per island each generation.",
     )
     run_parser.set_defaults(func=run)
 

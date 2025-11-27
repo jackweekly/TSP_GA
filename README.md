@@ -18,11 +18,10 @@ pip install -r requirements.txt
 # populate data/tsplib with .tsp/.opt.tour files (see Data section)
 make run   # runs/resumes EA with checkpointing at checkpoints/island_state.json
 make data  # prints checkpoint insights (best ops per island, avg scores)
-make run ARGS="--allow-list berlin52 --max-nodes 100 --max-instances 5 --generations 3 --population 6 --verbose"
 ```
 `make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present. By default `make run` limits loading to instances with ≤1000 nodes (change with `--max-nodes` or `--max-instances`).
 
-For faster/safer startup on large TSPLIB mirrors, defaults now load ≤500-node instances and at most 25 files, with operator-heavy mutation (population=20 by default) to search for new algorithm compositions. Use `--verbose` to print a preview of loaded instances and checkpoint paths. You can restrict loading to specific instances with `--allow-list berlin52,att48` (comma-separated, names without `.tsp`). An interactive preset menu appears when running `make run` (arrow keys + Enter); use `ARGS="--no-menu ..."` to bypass and supply flags directly. Continuous runs are supported via `--continuous` with per-generation top-k logs (`--log-top`).
+The run loop now defaults to two islands and continuous evolution. The only choice you make is which TSPLIB instance(s) to run on; `make run` will prompt for selection (or use `ARGS="--allow-list berlin52"` to skip the prompt). Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`.
 
 ### Stopping runs
 Use `make stop` to send SIGTERM to any `tsp_ga.cli run` processes if they are still active in the background.
