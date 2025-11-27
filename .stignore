@@ -1,5 +1,9 @@
-(?d).git/
-.git/
+.stfolder
+.stversions
+
+(?d).git
+(?d).git/**
+.git
 .git/**
 .gitignore
 .gitattributes
