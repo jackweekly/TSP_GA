@@ -31,6 +31,7 @@ def evaluate_solver(
     max_runtime: float = 5.0,
     runtime_weight: float = 0.1,
     dist_mat: Optional[torch.Tensor] = None,
+    node_map: Optional[dict] = None,
 ) -> Fitness:
     if dist_mat is not None and hasattr(solver, "dist_mat"):
         solver.dist_mat = dist_mat
@@ -47,7 +48,11 @@ def evaluate_solver(
             solver_name=solver.__class__.__name__,
         )
     if dist_mat is not None and torch.is_tensor(dist_mat):
-        length = _tour_length_torch(dist_mat, tour)
+        if node_map:
+            tour_idx = [node_map.get(n, 0) for n in tour]
+        else:
+            tour_idx = tour
+        length = _tour_length_torch(dist_mat, tour_idx)
     else:
         length = tour_length(graph, tour)
     gap = float("inf") if optimum is None else (length - optimum) / optimum

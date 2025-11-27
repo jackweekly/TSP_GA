@@ -29,12 +29,14 @@ class EvolutionarySearch:
         dist_mats: Sequence = None,
         rng: random.Random = None,
         device=None,
+        node_maps: Sequence = None,
     ):
         self.cfg = config
         self.graphs = graphs
         self.optima = optima
         self.dist_mats = dist_mats or [None] * len(graphs)
         self.device = device
+        self.node_maps = node_maps or [None] * len(graphs)
         self.rng = rng or random.Random(config.random_seed)
         random.seed(config.random_seed)
         self.population: List[Genome] = [
@@ -52,6 +54,7 @@ class EvolutionarySearch:
             graph = self.graphs[idx]
             opt = self.optima[idx]
             dist = self.dist_mats[idx] if self.dist_mats else None
+            node_map = self.node_maps[idx] if self.node_maps else None
             fitness = evaluate_solver(
                 solver,
                 graph,
@@ -59,6 +62,7 @@ class EvolutionarySearch:
                 max_runtime=self.cfg.max_runtime,
                 runtime_weight=self.cfg.runtime_weight,
                 dist_mat=dist,
+                node_map=node_map,
             )
             fitnesses.append(fitness)
             if self.surrogate and dist is not None:

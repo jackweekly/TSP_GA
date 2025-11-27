@@ -30,14 +30,14 @@ def load_checkpoint(graphs, optima, path: Path = CHECKPOINT_PATH) -> IslandModel
     return IslandModel.from_state(state, graphs, optima)
 
 
-def build_model(graphs, optima, resume: bool, cfg: IslandConfig, dist_mats=None, devices=None) -> IslandModel:
+def build_model(graphs, optima, resume: bool, cfg: IslandConfig, dist_mats=None, devices=None, node_maps=None) -> IslandModel:
     if resume and CHECKPOINT_PATH.exists():
         print(f"Resuming from {CHECKPOINT_PATH}")
         state = json.loads(CHECKPOINT_PATH.read_text())
-        model = IslandModel.from_state(state, graphs, optima, dist_mats=dist_mats, devices=devices)
+        model = IslandModel.from_state(state, graphs, optima, dist_mats=dist_mats, devices=devices, node_maps=node_maps)
     else:
         print("Starting new model")
-        model = IslandModel(cfg, graphs, optima, dist_mats=dist_mats, devices=devices)
+        model = IslandModel(cfg, graphs, optima, dist_mats=dist_mats, devices=devices, node_maps=node_maps)
     # Load surrogate weights if present.
     for idx, island in enumerate(model.islands):
         ckpt_path = CHECKPOINT_PATH.parent / f"surrogate_{idx}.pt"
@@ -51,13 +51,13 @@ def log(msg: str) -> None:
     print(f"[{ts}] {msg}", flush=True)
 
 
-def _build_dist_mat(graph: nx.Graph, device: torch.device) -> torch.Tensor:
+def _build_dist_mat(graph: nx.Graph, device: torch.device):
     nodes = list(graph.nodes())
     idx_map = {n: i for i, n in enumerate(nodes)}
     edges = list(graph.edges(data="weight", default=1.0))
     if not edges:
         mat = torch.zeros((len(nodes), len(nodes)), device=device)
-        return mat
+        return mat, nodes
     rows = []
     cols = []
     vals = []
@@ -71,27 +71,37 @@ def _build_dist_mat(graph: nx.Graph, device: torch.device) -> torch.Tensor:
     values = torch.tensor(vals, device=device, dtype=torch.float32)
     size = (len(nodes), len(nodes))
     sp = torch.sparse_coo_tensor(indices, values, size=size, device=device)
-    return sp.to_dense()
+    return sp.to_dense(), nodes
 
 
-def _load_or_build_dist_mats(instances, devices, cache_dir: Path) -> List[torch.Tensor]:
+def _load_or_build_dist_mats(instances, devices, cache_dir: Path):
     cache_dir.mkdir(parents=True, exist_ok=True)
     dist_mats = [None] * len(instances)
+    node_orders = [None] * len(instances)
 
     def worker(idx_inst):
         idx, inst = idx_inst
         device = devices[idx % len(devices)]
         cache_path = cache_dir / f"{inst.name}.pt"
         if cache_path.exists():
-            mat = torch.load(cache_path, map_location=device)
+            data = torch.load(cache_path, map_location=device)
+            if isinstance(data, dict) and "dist" in data and "nodes" in data:
+                mat = data["dist"]
+                nodes = data["nodes"]
+            else:
+                mat = data
+                nodes = list(inst.graph.nodes())
         else:
-            mat = _build_dist_mat(inst.graph, device=device).to(torch.float16)
-            torch.save(mat.cpu(), cache_path)
+            mat, nodes = _build_dist_mat(inst.graph, device=device)
+            torch.save({"dist": mat.cpu(), "nodes": nodes}, cache_path)
+        if mat.dtype != torch.float16:
+            mat = mat.to(torch.float16)
         dist_mats[idx] = mat.to(device)
+        node_orders[idx] = {n: i for i, n in enumerate(nodes)}
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(instances))) as ex:
         list(ex.map(worker, enumerate(instances)))
-    return dist_mats
+    return dist_mats, node_orders
 
 
 def _choose_instances(instances):
@@ -126,7 +136,7 @@ def run(args) -> None:
     dist_cache = data_root / ".cache"
     t_cache_start = time.perf_counter()
     log("building/loading distance matrices...")
-    dist_mats = _load_or_build_dist_mats(selected, devices, dist_cache)
+    dist_mats, node_maps = _load_or_build_dist_mats(selected, devices, dist_cache)
     t_cache_end = time.perf_counter()
     log(f"distance matrices ready in {t_cache_end - t_cache_start:.2f}s (cache: {dist_cache})")
     names = ", ".join(inst.name for inst in selected)
@@ -142,7 +152,7 @@ def run(args) -> None:
         runtime_weight=0.1,
         random_seed=123,
     )
-    model = build_model(graphs, optima, resume=True, cfg=cfg, dist_mats=dist_mats, devices=devices)
+    model = build_model(graphs, optima, resume=True, cfg=cfg, dist_mats=dist_mats, devices=devices, node_maps=node_maps)
 
     log("running continuously; Ctrl+C to stop.")
     try:

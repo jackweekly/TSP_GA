@@ -15,16 +15,21 @@ class IslandConfig(EvolutionConfig):
 
 
 class IslandModel:
-    def __init__(self, cfg: IslandConfig, graphs, optima, dist_mats=None, devices=None):
+    def __init__(self, cfg: IslandConfig, graphs, optima, dist_mats=None, devices=None, node_maps=None):
         self.cfg = cfg
         self.islands: List[EvolutionarySearch] = []
         devices = devices or [None]
         dist_mats = dist_mats or [None] * len(graphs)
+        node_maps = node_maps or [None] * len(graphs)
         for i in range(cfg.islands):
             rng = random.Random(cfg.random_seed + i)
             island_cfg = copy.deepcopy(cfg)
             device = devices[i % len(devices)]
-            self.islands.append(EvolutionarySearch(island_cfg, graphs, optima, dist_mats, rng=rng, device=device))
+            self.islands.append(
+                EvolutionarySearch(
+                    island_cfg, graphs, optima, dist_mats, rng=rng, device=device, node_maps=node_maps
+                )
+            )
         self.generation = 0
 
     def migrate(self) -> None:
@@ -75,9 +80,9 @@ class IslandModel:
         }
 
     @classmethod
-    def from_state(cls, state: Dict, graphs, optima, dist_mats=None, devices=None) -> "IslandModel":
+    def from_state(cls, state: Dict, graphs, optima, dist_mats=None, devices=None, node_maps=None) -> "IslandModel":
         cfg = IslandConfig(**state["cfg"])
-        model = cls(cfg, graphs, optima, dist_mats=dist_mats, devices=devices)
+        model = cls(cfg, graphs, optima, dist_mats=dist_mats, devices=devices, node_maps=node_maps)
         model.generation = state.get("generation", 0)
         islands_state = state.get("islands", [])
         for island, island_state in zip(model.islands, islands_state):
