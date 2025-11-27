@@ -1,11 +1,15 @@
 from .base import Solver, SolveResult, Tour, tour_length
 from .genome import Genome
 from .heuristics import (
-    NearestNeighborSolver,
-    RandomInsertionSolver,
-    TwoOptLocalSearch,
+    CompositionSolver,
+    ConstructiveSolver,
     nearest_neighbor_tour,
+    greedy_cycle,
+    christofides_like,
     two_opt,
+    three_opt,
+    double_bridge,
+    ruin_recreate,
 )
 
 __all__ = [
@@ -14,9 +18,13 @@ __all__ = [
     "Tour",
     "tour_length",
     "Genome",
-    "NearestNeighborSolver",
-    "RandomInsertionSolver",
-    "TwoOptLocalSearch",
+    "CompositionSolver",
+    "ConstructiveSolver",
     "nearest_neighbor_tour",
+    "greedy_cycle",
+    "christofides_like",
     "two_opt",
+    "three_opt",
+    "double_bridge",
+    "ruin_recreate",
 ]
