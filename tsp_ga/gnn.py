@@ -100,6 +100,12 @@ class SurrogateManager:
         self.model.train()
         batch = random.sample(self.buffer, batch_size)
         adjs, feats, ops, ys = zip(*batch)
+        # Move to surrogate device and pad to max size.
+        device = self.device
+        adjs = [a.to(device) for a in adjs]
+        feats = [f.to(device) for f in feats]
+        ops = [o.to(device) for o in ops]
+        ys = [y.to(device) for y in ys]
         max_n = max(a.shape[-1] for a in adjs)
         def pad(t, target):
             if t.shape[-1] == target:
