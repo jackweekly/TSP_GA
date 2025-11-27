@@ -21,7 +21,7 @@ make data  # prints checkpoint insights (best ops per island, avg scores)
 ```
 `make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present.
 
-The run loop now defaults to two islands and continuous evolution. It loads all available TSPLIB instances and runs continuously; it will prompt once to pick a starting instance if interactive, otherwise uses the smallest. Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`. The GA now searches over structured solver programs (construct → improve → diversify) with richer primitives (nearest-neighbor, random insertion, greedy cycle, Christofides-like start, 2/3-opt, double-bridge, ruin/recreate) and novelty pressure to encourage new algorithm shapes, not just hyperparameter tweaks. Distance matrices are preloaded to GPU when available so fitness and local searches can leverage CUDA.
+The run loop now defaults to two islands and continuous evolution over all TSPLIB instances. Distance matrices are built on GPU (cached under `data/tsplib/.cache` in fp16) for faster startup. Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`; surrogate models per island are saved alongside.
 
 ### Stopping runs
 Use `make stop` to send SIGTERM to any `tsp_ga.cli run` processes if they are still active in the background.

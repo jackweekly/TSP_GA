@@ -69,16 +69,21 @@ def _build_dist_mat(graph: nx.Graph, device: torch.device) -> torch.Tensor:
 
 def _load_or_build_dist_mats(instances, devices, cache_dir: Path) -> List[torch.Tensor]:
     cache_dir.mkdir(parents=True, exist_ok=True)
-    dist_mats = []
-    for idx, inst in enumerate(instances):
+    dist_mats = [None] * len(instances)
+
+    def worker(args):
+        idx, inst = args
         device = devices[idx % len(devices)]
         cache_path = cache_dir / f"{inst.name}.pt"
         if cache_path.exists():
             mat = torch.load(cache_path, map_location=device)
         else:
-            mat = _build_dist_mat(inst.graph, device=device)
+            mat = _build_dist_mat(inst.graph, device=device).to(torch.float16)
             torch.save(mat.cpu(), cache_path)
-        dist_mats.append(mat.to(device))
+        dist_mats[idx] = mat.to(device)
+
+    for args in enumerate(instances):
+        worker(args)
     return dist_mats
 
 

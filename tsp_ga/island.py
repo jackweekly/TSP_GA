@@ -85,9 +85,15 @@ class IslandModel:
             if pop_ops:
                 island.population = [
                     Genome(
-                        construct=item.get("construct", "nearest_neighbor"),
-                        improve_ops=item.get("improve_ops", []),
-                        diversify_ops=item.get("diversify_ops", []),
+                        construct=item.get("construct", "nearest_neighbor")
+                        if isinstance(item, dict)
+                        else "nearest_neighbor",
+                        improve_ops=item.get("improve_ops", [])
+                        if isinstance(item, dict)
+                        else (item[1] if isinstance(item, list) and len(item) > 1 else []),
+                        diversify_ops=item.get("diversify_ops", [])
+                        if isinstance(item, dict)
+                        else [],
                     )
                     for item in pop_ops
                 ]
