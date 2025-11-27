@@ -30,7 +30,11 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig) -> IslandModel:
 
 def run(args) -> None:
     data_root = Path(args.data_root)
-    instances = load_data(data_root)
+    instances = load_data(
+        data_root,
+        max_nodes=args.max_nodes,
+        max_instances=args.max_instances,
+    )
     splits = split_by_hash(instances)
     train = splits["train"] or instances
     if not train:
@@ -109,6 +113,18 @@ def main():
     run_parser.add_argument("--max-runtime", type=float, default=2.0)
     run_parser.add_argument("--runtime-weight", type=float, default=0.1)
     run_parser.add_argument("--seed", type=int, default=123)
+    run_parser.add_argument(
+        "--max-nodes",
+        type=int,
+        default=1000,
+        help="Skip instances with more nodes than this (to avoid huge graphs by default).",
+    )
+    run_parser.add_argument(
+        "--max-instances",
+        type=int,
+        default=200,
+        help="Limit number of instances loaded (None for all).",
+    )
     run_parser.add_argument("--fresh", action="store_true", help="Ignore checkpoints")
     run_parser.set_defaults(func=run)
 

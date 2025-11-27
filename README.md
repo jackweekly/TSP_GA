@@ -19,6 +19,7 @@ pip install -r requirements.txt
 make run   # runs/resumes EA with checkpointing at checkpoints/island_state.json
 make data  # prints checkpoint insights (best ops per island, avg scores)
 ```
+`make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present. By default `make run` limits loading to instances with ≤1000 nodes (change with `--max-nodes` or `--max-instances`).
 
 ## Running islands (2×5080 cloud node)
 - Configure per-node island counts and migration in `tsp_ga/island.py` (`IslandConfig`).

@@ -35,6 +35,20 @@ def _solution_candidates(path: Path) -> Iterable[Path]:
         yield path.parent / "solutions" / f"{path.stem}{ext}"
 
 
+def _read_dimension(path: Path) -> Optional[int]:
+    try:
+        with path.open("r") as f:
+            for line in f:
+                if "DIMENSION" in line.upper():
+                    parts = line.replace(":", " ").split()
+                    for token in parts:
+                        if token.isdigit():
+                            return int(token)
+        return None
+    except Exception:
+        return None
+
+
 def _load_optimum(problem, path: Path) -> Optional[float]:
     for candidate in _solution_candidates(path):
         if not candidate.exists():
@@ -60,9 +74,19 @@ def load_instance(path: Path) -> Instance:
     return Instance(name=problem.name, path=path, graph=graph, optimum=optimum)
 
 
-def load_tsplib_instances(root: Path) -> List[Instance]:
+def load_tsplib_instances(
+    root: Path, max_nodes: Optional[int] = None, max_instances: Optional[int] = None
+) -> List[Instance]:
     tsp_files = sorted(root.glob("*.tsp"))
-    instances = [load_instance(p) for p in tsp_files]
+    instances: List[Instance] = []
+    for p in tsp_files:
+        if max_nodes is not None:
+            dim = _read_dimension(p)
+            if dim is not None and dim > max_nodes:
+                continue
+        instances.append(load_instance(p))
+        if max_instances is not None and len(instances) >= max_instances:
+            break
     return instances
 
 
@@ -106,7 +130,12 @@ def load_manifest(cache_path: Path) -> Optional[List[Dict]]:
     return json.loads(cache_path.read_text())
 
 
-def load_data(root: Path, use_cache: bool = True) -> List[Instance]:
+def load_data(
+    root: Path,
+    use_cache: bool = True,
+    max_nodes: Optional[int] = None,
+    max_instances: Optional[int] = None,
+) -> List[Instance]:
     cache_path = root / "manifest.json"
     if use_cache:
         cached = load_manifest(cache_path)
@@ -119,10 +148,14 @@ def load_data(root: Path, use_cache: bool = True) -> List[Instance]:
                 inst = load_instance(p)
                 if hash_file(p) != item["hash"]:
                     continue
+                if max_nodes is not None:
+                    dim = len(inst.graph)
+                    if dim > max_nodes:
+                        continue
                 instances.append(inst)
             if instances:
                 return instances
-    instances = load_tsplib_instances(root)
+    instances = load_tsplib_instances(root, max_nodes=max_nodes, max_instances=max_instances)
     if use_cache:
         cache_manifest(instances, cache_path)
     return instances
