@@ -19,9 +19,9 @@ pip install -r requirements.txt
 make run   # runs/resumes EA with checkpointing at checkpoints/island_state.json
 make data  # prints checkpoint insights (best ops per island, avg scores)
 ```
-`make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present. By default `make run` limits loading to instances with ≤1000 nodes (change with `--max-nodes` or `--max-instances`).
+`make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present.
 
-The run loop now defaults to two islands and continuous evolution. The only choice you make is which TSPLIB instance(s) to run on; `make run` will prompt for selection (or use `ARGS="--allow-list berlin52"` to skip the prompt). Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`.
+The run loop now defaults to two islands and continuous evolution. The only choice you make is which TSPLIB instance(s) to run on; `make run` will prompt for selection. Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`.
 
 ### Stopping runs
 Use `make stop` to send SIGTERM to any `tsp_ga.cli run` processes if they are still active in the background.

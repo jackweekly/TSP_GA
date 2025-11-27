@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 from tsp_ga.data import load_data, split_by_hash
 from tsp_ga.island import IslandConfig, IslandModel
@@ -29,17 +29,16 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig) -> IslandModel:
     return IslandModel(cfg, graphs, optima)
 
 
-def _choose_instances(instances, allow_list: str = None):
-    if allow_list:
-        names = {n.strip().lower() for n in allow_list.split(",")}
-        filtered = [inst for inst in instances if inst.name.lower() in names]
-        if filtered:
-            return filtered
+def _choose_instances(instances):
+    instances = sorted(instances, key=lambda inst: (len(inst.graph), inst.name.lower()))
     if not sys.stdin.isatty():
         return [instances[0]]
     print("Select instance(s) by number (comma separated) or press Enter for first:")
-    for idx, inst in enumerate(instances[:30]):
-        print(f"[{idx}] {inst.name} ({len(inst.graph)} nodes)")
+    display = instances[:20]
+    for idx, inst in enumerate(display):
+        print(f"[{idx:02d}] {inst.name:<12} {len(inst.graph):>5} nodes")
+    if len(instances) > len(display):
+        print(f"... ({len(instances) - len(display)} more not shown)")
     choice = input("Choice: ").strip()
     if not choice:
         return [instances[0]]
@@ -62,7 +61,7 @@ def run(args) -> None:
             f"No TSPLIB instances found in {data_root}. "
             "Place .tsp (and optional .opt.tour) files there before running."
         )
-    selected = _choose_instances(instances, allow_list=args.allow_list)
+    selected = _choose_instances(instances)
     graphs = [inst.graph for inst in selected]
     optima = [inst.optimum for inst in selected]
     names = ", ".join(inst.name for inst in selected)
@@ -76,9 +75,9 @@ def run(args) -> None:
         evaluation_samples=1,
         max_runtime=1.0,
         runtime_weight=0.1,
-        random_seed=args.seed,
+        random_seed=123,
     )
-    model = build_model(graphs, optima, resume=not args.fresh, cfg=cfg)
+    model = build_model(graphs, optima, resume=True, cfg=cfg)
 
     print("[info] running continuously; Ctrl+C to stop.")
     try:
@@ -111,11 +110,15 @@ def island_insights(model: IslandModel) -> Tuple[str, str]:
 
 
 def _print_island_tops(model: IslandModel, top_k: int = 3) -> None:
+    lines: List[str] = []
     for idx, island in enumerate(model.islands):
         scored = [(island.evaluate_genome(g), g) for g in island.population]
         scored.sort(key=lambda x: x[0])
-        tops = ", ".join(f"{s:.1f}:{g.ops}" for s, g in scored[:top_k])
-        print(f"  island {idx}: {tops}")
+        best_score, best_genome = scored[0]
+        avg_score = sum(s for s, _ in scored) / len(scored)
+        top_ops = " ".join(best_genome.ops)
+        lines.append(f"[island {idx}] best={best_score:8.2f} avg={avg_score:8.2f} ops={top_ops}")
+    print(" | ".join(lines))
 
 
 def data(args) -> None:
@@ -140,15 +143,6 @@ def main():
 
     run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search (continuous, two islands)")
     run_parser.add_argument("--data-root", default="data/tsplib")
-    run_parser.add_argument("--seed", type=int, default=123)
-    run_parser.add_argument("--fresh", action="store_true", help="Ignore checkpoints")
-    run_parser.add_argument("--verbose", action="store_true", help="Print extra debug info")
-    run_parser.add_argument(
-        "--allow-list",
-        type=str,
-        default=None,
-        help="Comma-separated instance names to allow (e.g., berlin52,att48). If set, only these load.",
-    )
     run_parser.set_defaults(func=run)
 
     data_parser = subparsers.add_parser("data", help="Inspect current checkpoint")
