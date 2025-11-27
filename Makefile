@@ -31,3 +31,7 @@ run:
 
 data:
 	@$(PYTHON) -m tsp_ga.cli data
+
+stop:
+	@echo "Stopping any running TSP_GA processes..."
+	@pkill -f "tsp_ga.cli run" 2>/dev/null && echo "Terminated matching python runs" || echo "No matching processes found"

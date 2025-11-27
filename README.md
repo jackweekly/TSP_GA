@@ -23,6 +23,9 @@ make data  # prints checkpoint insights (best ops per island, avg scores)
 
 For faster/safer startup on large TSPLIB mirrors, defaults now load ≤500-node instances and at most 100 files. Use `--verbose` to print a preview of loaded instances and checkpoint paths. You can restrict loading to specific instances with `--allow-list berlin52,att48` (comma-separated, names without `.tsp`).
 
+### Stopping runs
+Use `make stop` to send SIGTERM to any `tsp_ga.cli run` processes if they are still active in the background.
+
 ## Running islands (2×5080 cloud node)
 - Configure per-node island counts and migration in `tsp_ga/island.py` (`IslandConfig`).
 - Start one Python process per GPU with different seeds; periodically sync elites by writing/reading JSON genomes or via a small message bus (not included yet).
