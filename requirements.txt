@@ -1,0 +1,4 @@
+numpy
+networkx
+tsplib95
+tqdm
