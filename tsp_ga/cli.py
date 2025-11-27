@@ -123,13 +123,13 @@ def main():
 
     run_parser = subparsers.add_parser("run", help="Run / resume evolutionary search")
     run_parser.add_argument("--data-root", default="data/tsplib")
-    run_parser.add_argument("--generations", type=int, default=5)
-    run_parser.add_argument("--population", type=int, default=12)
-    run_parser.add_argument("--islands", type=int, default=2)
-    run_parser.add_argument("--migration-interval", type=int, default=3)
-    run_parser.add_argument("--migrants", type=int, default=2)
-    run_parser.add_argument("--samples", type=int, default=3)
-    run_parser.add_argument("--max-runtime", type=float, default=2.0)
+    run_parser.add_argument("--generations", type=int, default=3)
+    run_parser.add_argument("--population", type=int, default=8)
+    run_parser.add_argument("--islands", type=int, default=1)
+    run_parser.add_argument("--migration-interval", type=int, default=5)
+    run_parser.add_argument("--migrants", type=int, default=1)
+    run_parser.add_argument("--samples", type=int, default=1, help="Evaluation samples per genome")
+    run_parser.add_argument("--max-runtime", type=float, default=1.0)
     run_parser.add_argument("--runtime-weight", type=float, default=0.1)
     run_parser.add_argument("--seed", type=int, default=123)
     run_parser.add_argument(
@@ -141,7 +141,7 @@ def main():
     run_parser.add_argument(
         "--max-instances",
         type=int,
-        default=100,
+        default=25,
         help="Limit number of instances loaded (None for all).",
     )
     run_parser.add_argument("--fresh", action="store_true", help="Ignore checkpoints")
