@@ -33,6 +33,11 @@ def run(args) -> None:
     instances = load_data(data_root)
     splits = split_by_hash(instances)
     train = splits["train"] or instances
+    if not train:
+        raise RuntimeError(
+            f"No TSPLIB instances found in {data_root}. "
+            "Place .tsp (and optional .opt.tour) files there before running."
+        )
     graphs = [inst.graph for inst in train]
     optima = [inst.optimum for inst in train]
 
@@ -51,7 +56,10 @@ def run(args) -> None:
     for g in range(args.generations):
         model.step()
         best, score = model.best()
-        print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
+        if best is None:
+            print(f"gen {model.generation}: no valid genome scored yet (score={score})")
+        else:
+            print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
         save_checkpoint(model)
 
 

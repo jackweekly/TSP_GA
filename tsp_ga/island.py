@@ -47,7 +47,7 @@ class IslandModel:
         for island in self.islands:
             genome = island.best()
             score = island.evaluate_genome(genome)
-            if score < best_score:
+            if best_genome is None or score <= best_score:
                 best_genome = genome
                 best_score = score
         return best_genome, best_score
