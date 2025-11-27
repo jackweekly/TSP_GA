@@ -44,6 +44,44 @@ def build_model(graphs, optima, resume: bool, cfg: IslandConfig, dist_mats=None,
     return model
 
 
+def _build_dist_mat(graph: nx.Graph, device: torch.device) -> torch.Tensor:
+    nodes = list(graph.nodes())
+    idx_map = {n: i for i, n in enumerate(nodes)}
+    edges = list(graph.edges(data="weight", default=1.0))
+    if not edges:
+        mat = torch.zeros((len(nodes), len(nodes)), device=device)
+        return mat
+    rows = []
+    cols = []
+    vals = []
+    for u, v, w in edges:
+        rows.append(idx_map[u])
+        cols.append(idx_map[v])
+        rows.append(idx_map[v])
+        cols.append(idx_map[u])
+        vals.extend([w, w])
+    indices = torch.tensor([rows, cols], device=device)
+    values = torch.tensor(vals, device=device, dtype=torch.float32)
+    size = (len(nodes), len(nodes))
+    sp = torch.sparse_coo_tensor(indices, values, size=size, device=device)
+    return sp.to_dense()
+
+
+def _load_or_build_dist_mats(instances, devices, cache_dir: Path) -> List[torch.Tensor]:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    dist_mats = []
+    for idx, inst in enumerate(instances):
+        device = devices[idx % len(devices)]
+        cache_path = cache_dir / f"{inst.name}.pt"
+        if cache_path.exists():
+            mat = torch.load(cache_path, map_location=device)
+        else:
+            mat = _build_dist_mat(inst.graph, device=device)
+            torch.save(mat.cpu(), cache_path)
+        dist_mats.append(mat.to(device))
+    return dist_mats
+
+
 def _choose_instances(instances):
     # Use all instances to encourage general algorithms (no user prompt).
     return instances
@@ -61,14 +99,10 @@ def run(args) -> None:
     selected = _choose_instances(instances)
     graphs = [inst.graph for inst in selected]
     optima = [inst.optimum for inst in selected]
-    # Prepare distance matrices on available devices (round-robin).
     device_count = torch.cuda.device_count()
     devices = [torch.device(f"cuda:{i}") for i in range(device_count)] if device_count else [torch.device("cpu")]
-    dist_mats = []
-    for idx, g in enumerate(graphs):
-        device = devices[idx % len(devices)]
-        mat = nx.to_numpy_array(g, weight="weight")
-        dist_mats.append(torch.tensor(mat, device=device))
+    dist_cache = data_root / ".cache"
+    dist_mats = _load_or_build_dist_mats(selected, devices, dist_cache)
     names = ", ".join(inst.name for inst in selected)
     print(f"[info] using instances: {names} (count={len(graphs)}), devices={devices}")
 
