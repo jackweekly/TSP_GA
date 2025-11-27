@@ -8,13 +8,14 @@ from .solvers.genome import Genome
 
 @dataclass
 class EvolutionConfig:
-    population_size: int = 30
-    elite_fraction: float = 0.15
-    mutation_rate: float = 0.6
-    crossover_rate: float = 0.7
-    max_runtime: float = 5.0
+    population_size: int = 40
+    elite_fraction: float = 0.1
+    mutation_rate: float = 0.7
+    crossover_rate: float = 0.8
+    max_runtime: float = 2.0
     runtime_weight: float = 0.1
     evaluation_samples: int = 2
+    novelty_weight: float = 0.1
     random_seed: int = 123
 
 
@@ -32,13 +33,8 @@ class EvolutionarySearch:
         self.rng = rng or random.Random(config.random_seed)
         random.seed(config.random_seed)
         self.population: List[Genome] = [
-            Genome.random(self.rng) if hasattr(Genome, "random") else Genome([])
-            for _ in range(config.population_size)
+            Genome.random(self.rng) for _ in range(config.population_size)
         ]
-        # Fallback: if Genome.random not defined, start with simple primitives.
-        if not hasattr(Genome, "random"):
-            for g in self.population:
-                g.ops = [self.rng.choice(["nearest_neighbor", "random_insertion"])]
 
     def evaluate_genome(self, genome: Genome) -> float:
         solver = genome.build_solver()
@@ -62,11 +58,19 @@ class EvolutionarySearch:
 
     def step(self) -> None:
         scored = [(self.evaluate_genome(g), g) for g in self.population]
-        scored.sort(key=lambda x: x[0])
-        elite_count = max(1, int(self.cfg.elite_fraction * len(scored)))
-        elites = [g for _, g in scored[:elite_count]]
+        # Apply novelty pressure based on signature frequency.
+        sig_counts = {}
+        for _, g in scored:
+            sig_counts[g.signature] = sig_counts.get(g.signature, 0) + 1
+        adjusted = []
+        for score, g in scored:
+            rarity = 1.0 / sig_counts[g.signature]
+            adj = score * (1 - self.cfg.novelty_weight * rarity)
+            adjusted.append((adj, g))
+        adjusted.sort(key=lambda x: x[0])
+        elite_count = max(1, int(self.cfg.elite_fraction * len(adjusted)))
+        elites = [g for _, g in adjusted[:elite_count]]
         new_pop: List[Genome] = []
-        # Keep elites
         new_pop.extend(elites)
         while len(new_pop) < self.cfg.population_size:
             if self.rng.random() < self.cfg.crossover_rate and len(elites) >= 2:

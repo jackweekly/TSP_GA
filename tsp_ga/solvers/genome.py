@@ -3,62 +3,62 @@ from dataclasses import dataclass, field
 from typing import List
 
 from .base import Solver
-from .heuristics import (
-    NearestNeighborSolver,
-    RandomInsertionSolver,
-    TwoOptLocalSearch,
-)
+from .heuristics import CompositionSolver
 
 
-PRIMITIVES = ["nearest_neighbor", "random_insertion", "two_opt"]
-
-
-def build_solver(ops: List[str]) -> Solver:
-    if not ops:
-        return NearestNeighborSolver()
-    solver: Solver = NearestNeighborSolver()
-    for op in ops:
-        if op == "nearest_neighbor":
-            solver = NearestNeighborSolver()
-        elif op == "random_insertion":
-            solver = RandomInsertionSolver()
-        elif op == "two_opt":
-            solver = TwoOptLocalSearch(solver)
-        else:
-            raise ValueError(f"Unknown operator {op}")
-    return solver
+CONSTRUCT_PRIMS = ["nearest_neighbor", "random_insertion", "greedy_cycle", "christofides"]
+IMPROVE_PRIMS = ["two_opt", "three_opt"]
+DIV_PRIMS = ["double_bridge", "ruin_recreate"]
 
 
 @dataclass
 class Genome:
-    ops: List[str] = field(default_factory=list)
+    construct: str
+    improve_ops: List[str] = field(default_factory=list)
+    diversify_ops: List[str] = field(default_factory=list)
 
     @staticmethod
-    def random(rng: random.Random, length: int = None) -> "Genome":
-        if length is None:
-            length = rng.randint(1, 4)
-        return Genome([rng.choice(PRIMITIVES) for _ in range(length)])
+    def random(rng: random.Random, improve_len: int = None, diversify_len: int = None) -> "Genome":
+        if improve_len is None:
+            improve_len = rng.randint(1, 3)
+        if diversify_len is None:
+            diversify_len = rng.randint(0, 2)
+        construct = rng.choice(CONSTRUCT_PRIMS)
+        improve_ops = [rng.choice(IMPROVE_PRIMS) for _ in range(improve_len)]
+        diversify_ops = [rng.choice(DIV_PRIMS) for _ in range(diversify_len)]
+        return Genome(construct=construct, improve_ops=improve_ops, diversify_ops=diversify_ops)
 
-    def mutate(self, rate: float = 0.3) -> "Genome":
-        new_ops = self.ops[:]
-        # Operator-level mutations: replace, insert, delete, swap.
-        for i in range(len(new_ops)):
-            if random.random() < rate:
-                new_ops[i] = random.choice(PRIMITIVES)
+    def mutate(self, rate: float = 0.5) -> "Genome":
+        construct = self.construct
+        improve_ops = self.improve_ops[:]
+        diversify_ops = self.diversify_ops[:]
         if random.random() < rate:
-            pos = random.randrange(len(new_ops) + 1)
-            new_ops.insert(pos, random.choice(PRIMITIVES))
-        if new_ops and random.random() < rate:
-            new_ops.pop(random.randrange(len(new_ops)))
-        if len(new_ops) > 1 and random.random() < rate:
-            i, j = random.sample(range(len(new_ops)), 2)
-            new_ops[i], new_ops[j] = new_ops[j], new_ops[i]
-        return Genome(new_ops)
+            construct = random.choice(CONSTRUCT_PRIMS)
+        for ops, pool in [(improve_ops, IMPROVE_PRIMS), (diversify_ops, DIV_PRIMS)]:
+            for i in range(len(ops)):
+                if random.random() < rate:
+                    ops[i] = random.choice(pool)
+            if random.random() < rate:
+                pos = random.randrange(len(ops) + 1)
+                ops.insert(pos, random.choice(pool))
+            if ops and random.random() < rate:
+                ops.pop(random.randrange(len(ops)))
+            if len(ops) > 1 and random.random() < rate:
+                i, j = random.sample(range(len(ops)), 2)
+                ops[i], ops[j] = ops[j], ops[i]
+        return Genome(construct=construct, improve_ops=improve_ops, diversify_ops=diversify_ops)
 
     def crossover(self, other: "Genome") -> "Genome":
-        split = random.randint(0, max(len(self.ops), len(other.ops)))
-        child_ops = self.ops[:split] + other.ops[split:]
-        return Genome(child_ops)
+        child_construct = random.choice([self.construct, other.construct])
+        mid_improve = random.randint(0, max(len(self.improve_ops), len(other.improve_ops)))
+        child_improve = self.improve_ops[:mid_improve] + other.improve_ops[mid_improve:]
+        mid_div = random.randint(0, max(len(self.diversify_ops), len(other.diversify_ops)))
+        child_div = self.diversify_ops[:mid_div] + other.diversify_ops[mid_div:]
+        return Genome(construct=child_construct, improve_ops=child_improve, diversify_ops=child_div)
 
     def build_solver(self) -> Solver:
-        return build_solver(self.ops)
+        return CompositionSolver(self.construct, self.improve_ops, self.diversify_ops)
+
+    @property
+    def signature(self) -> str:
+        return f"{self.construct}|{'-'.join(self.improve_ops)}|{'-'.join(self.diversify_ops)}"

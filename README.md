@@ -21,7 +21,7 @@ make data  # prints checkpoint insights (best ops per island, avg scores)
 ```
 `make install` also fetches TSPLIB data/solutions from mastqe/tsplib if no `.tsp` files are present.
 
-The run loop now defaults to two islands and continuous evolution. The only choice you make is which TSPLIB instance(s) to run on; `make run` will prompt for selection. Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`.
+The run loop now defaults to two islands and continuous evolution. It loads all available TSPLIB instances and runs continuously; it will prompt once to pick a starting instance if interactive, otherwise uses the smallest. Per-generation logs show island top scores and checkpoints persist in `checkpoints/island_state.json`. The GA now searches over structured solver programs (construct → improve → diversify) with richer primitives (nearest-neighbor, random insertion, greedy cycle, Christofides-like start, 2/3-opt, double-bridge, ruin/recreate) and novelty pressure to encourage new algorithm shapes, not just hyperparameter tweaks.
 
 ### Stopping runs
 Use `make stop` to send SIGTERM to any `tsp_ga.cli run` processes if they are still active in the background.
