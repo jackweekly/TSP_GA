@@ -35,6 +35,8 @@ def evaluate_solver(
 ) -> Fitness:
     if dist_mat is not None and hasattr(solver, "dist_mat"):
         solver.dist_mat = dist_mat
+    if node_map is not None and hasattr(solver, "node_map"):
+        solver.node_map = node_map
     start = time.perf_counter()
     tour = solver.solve(graph)
     runtime = time.perf_counter() - start

@@ -271,11 +271,17 @@ class CompositionSolver(Solver):
         self.improve_ops = improve_ops
         self.diversify_ops = diversify_ops
         self.dist_mat = None  # set externally when GPU matrix available
+        self.node_map = None   # optional mapping from node label to index
 
     def solve(self, graph: nx.Graph) -> Tour:
         if self.dist_mat is not None and torch.is_tensor(self.dist_mat):
             # GPU path
-            base = torch.tensor(ConstructiveSolver(self.construct).solve(graph), device=self.dist_mat.device)
+            base_nodes = ConstructiveSolver(self.construct).solve(graph)
+            if self.node_map:
+                base_idx = [self.node_map.get(n, 0) for n in base_nodes]
+            else:
+                base_idx = base_nodes
+            base = torch.tensor(base_idx, device=self.dist_mat.device, dtype=torch.long)
             cur = base
             for op in self.improve_ops:
                 if op == "two_opt":
