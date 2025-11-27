@@ -35,13 +35,24 @@ def run(args) -> None:
         max_nodes=args.max_nodes,
         max_instances=args.max_instances,
     )
-    splits = split_by_hash(instances)
-    train = splits["train"] or instances
-    if not train:
+    dims = [len(inst.graph) for inst in instances]
+    with_opt = sum(1 for inst in instances if inst.optimum is not None)
+    if not instances:
         raise RuntimeError(
             f"No TSPLIB instances found in {data_root}. "
             "Place .tsp (and optional .opt.tour) files there before running."
         )
+    print(
+        f"Loaded {len(instances)} instances "
+        f"(nodes: min={min(dims)} max={max(dims)}, optima={with_opt}/{len(instances)})"
+    )
+    if args.verbose:
+        preview = ", ".join(
+            f"{inst.name}({len(inst.graph)})" for inst in instances[: min(10, len(instances))]
+        )
+        print(f"Preview: {preview}")
+    splits = split_by_hash(instances)
+    train = splits["train"] or instances
     graphs = [inst.graph for inst in train]
     optima = [inst.optimum for inst in train]
 
@@ -64,6 +75,8 @@ def run(args) -> None:
             print(f"gen {model.generation}: no valid genome scored yet (score={score})")
         else:
             print(f"gen {model.generation}: best ops={best.ops} score={score:.2f}")
+        if args.verbose:
+            print(f"  checkpoint -> {CHECKPOINT_PATH}")
         save_checkpoint(model)
 
 
@@ -116,16 +129,17 @@ def main():
     run_parser.add_argument(
         "--max-nodes",
         type=int,
-        default=1000,
+        default=500,
         help="Skip instances with more nodes than this (to avoid huge graphs by default).",
     )
     run_parser.add_argument(
         "--max-instances",
         type=int,
-        default=200,
+        default=100,
         help="Limit number of instances loaded (None for all).",
     )
     run_parser.add_argument("--fresh", action="store_true", help="Ignore checkpoints")
+    run_parser.add_argument("--verbose", action="store_true", help="Print extra debug info")
     run_parser.set_defaults(func=run)
 
     data_parser = subparsers.add_parser("data", help="Inspect current checkpoint")
