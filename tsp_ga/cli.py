@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 from tsp_ga.data import load_data, split_by_hash
 from tsp_ga.island import IslandConfig, IslandModel
+import torch
 
 
 CHECKPOINT_PATH = Path("checkpoints/island_state.json")
@@ -64,8 +65,16 @@ def run(args) -> None:
     selected = _choose_instances(instances)
     graphs = [inst.graph for inst in selected]
     optima = [inst.optimum for inst in selected]
+    # Prepare distance matrices on available devices (round-robin).
+    device_count = torch.cuda.device_count()
+    devices = [torch.device(f"cuda:{i}") for i in range(device_count)] if device_count else [torch.device("cpu")]
+    dist_mats = []
+    for idx, g in enumerate(graphs):
+        device = devices[idx % len(devices)]
+        mat = nx.to_numpy_array(g, weight="weight")
+        dist_mats.append(torch.tensor(mat, device=device))
     names = ", ".join(inst.name for inst in selected)
-    print(f"[info] using instances: {names} (count={len(graphs)})")
+    print(f"[info] using instances: {names} (count={len(graphs)}), devices={devices}")
 
     cfg = IslandConfig(
         population_size=30,
@@ -77,7 +86,7 @@ def run(args) -> None:
         runtime_weight=0.1,
         random_seed=123,
     )
-    model = build_model(graphs, optima, resume=True, cfg=cfg)
+    model = build_model(graphs, optima, resume=True, cfg=cfg, dist_mats=dist_mats, devices=devices)
 
     print("[info] running continuously; Ctrl+C to stop.")
     try:

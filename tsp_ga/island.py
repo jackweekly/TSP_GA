@@ -15,13 +15,16 @@ class IslandConfig(EvolutionConfig):
 
 
 class IslandModel:
-    def __init__(self, cfg: IslandConfig, graphs, optima):
+    def __init__(self, cfg: IslandConfig, graphs, optima, dist_mats=None, devices=None):
         self.cfg = cfg
         self.islands: List[EvolutionarySearch] = []
+        devices = devices or [None]
+        dist_mats = dist_mats or [None] * len(graphs)
         for i in range(cfg.islands):
             rng = random.Random(cfg.random_seed + i)
             island_cfg = copy.deepcopy(cfg)
-            self.islands.append(EvolutionarySearch(island_cfg, graphs, optima, rng=rng))
+            device = devices[i % len(devices)]
+            self.islands.append(EvolutionarySearch(island_cfg, graphs, optima, dist_mats, rng=rng, device=device))
         self.generation = 0
 
     def migrate(self) -> None:

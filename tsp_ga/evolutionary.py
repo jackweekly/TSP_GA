@@ -25,11 +25,15 @@ class EvolutionarySearch:
         config: EvolutionConfig,
         graphs: Sequence,
         optima: Sequence,
+        dist_mats: Sequence = None,
         rng: random.Random = None,
+        device=None,
     ):
         self.cfg = config
         self.graphs = graphs
         self.optima = optima
+        self.dist_mats = dist_mats or [None] * len(graphs)
+        self.device = device
         self.rng = rng or random.Random(config.random_seed)
         random.seed(config.random_seed)
         self.population: List[Genome] = [
@@ -45,12 +49,14 @@ class EvolutionarySearch:
         for idx in sample_idxs:
             graph = self.graphs[idx]
             opt = self.optima[idx]
+            dist = self.dist_mats[idx] if self.dist_mats else None
             fitness = evaluate_solver(
                 solver,
                 graph,
                 opt,
                 max_runtime=self.cfg.max_runtime,
                 runtime_weight=self.cfg.runtime_weight,
+                dist_mat=dist,
             )
             fitnesses.append(fitness)
         agg = aggregate_fitness(fitnesses)
