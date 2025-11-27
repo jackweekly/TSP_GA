@@ -4,9 +4,11 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
+import networkx as nx
+import torch
+
 from tsp_ga.data import load_data, split_by_hash
 from tsp_ga.island import IslandConfig, IslandModel
-import torch
 
 
 CHECKPOINT_PATH = Path("checkpoints/island_state.json")
