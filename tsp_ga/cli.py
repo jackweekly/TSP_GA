@@ -113,7 +113,7 @@ def run(args) -> None:
     t0 = time.perf_counter()
     data_root = Path(args.data_root)
     log(f"loading data from {data_root}")
-    instances = load_data(data_root)
+    instances = load_data(data_root, dist_cache=data_root / ".cache")
     if not instances:
         raise RuntimeError(
             f"No TSPLIB instances found in {data_root}. "

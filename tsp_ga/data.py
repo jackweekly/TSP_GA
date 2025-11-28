@@ -75,12 +75,29 @@ def load_instance(path: Path) -> Instance:
     return Instance(name=problem.name, path=path, graph=graph, optimum=optimum)
 
 
+def load_instance_from_cache(path: Path, cache_path: Path) -> Optional[Instance]:
+    if not cache_path.exists():
+        return None
+    data = torch.load(cache_path, map_location="cpu")
+    if isinstance(data, dict) and "dist" in data and "nodes" in data:
+        mat = data["dist"]
+        nodes = data["nodes"]
+    else:
+        return None
+    g = nx.from_numpy_array(mat.numpy())
+    mapping = {i: n for i, n in enumerate(nodes)}
+    g = nx.relabel_nodes(g, mapping)
+    optimum = _load_optimum(tsplib95.load(path), path)
+    return Instance(name=path.stem, path=path, graph=g, optimum=optimum)
+
+
 def load_tsplib_instances(
     root: Path,
     max_nodes: Optional[int] = None,
     max_instances: Optional[int] = None,
     allow_list: Optional[List[str]] = None,
     max_workers: int = 8,
+    dist_cache: Optional[Path] = None,
 ) -> List[Instance]:
     tsp_files = sorted(root.glob("*.tsp"))
     allow_set = {name.lower() for name in allow_list} if allow_list else None
@@ -96,8 +113,16 @@ def load_tsplib_instances(
         if max_instances is not None and len(filtered) >= max_instances:
             break
     instances: List[Instance] = []
+    def loader(path: Path):
+        if dist_cache:
+            cache_path = dist_cache / f"{path.stem}.pt"
+            inst = load_instance_from_cache(path, cache_path)
+            if inst:
+                return inst
+        return load_instance(path)
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, len(filtered) or 1)) as ex:
-        for inst in ex.map(load_instance, filtered):
+        for inst in ex.map(loader, filtered):
             instances.append(inst)
     return instances
 
@@ -149,6 +174,7 @@ def load_data(
     max_nodes: Optional[int] = None,
     max_instances: Optional[int] = None,
     allow_list: Optional[str] = None,
+    dist_cache: Optional[Path] = None,
 ) -> List[Instance]:
     cache_path = root / "manifest.json"
     if use_cache:
@@ -173,7 +199,11 @@ def load_data(
                 return instances
     allow_names = [n.strip() for n in allow_list.split(",")] if allow_list else None
     instances = load_tsplib_instances(
-        root, max_nodes=max_nodes, max_instances=max_instances, allow_list=allow_names
+        root,
+        max_nodes=max_nodes,
+        max_instances=max_instances,
+        allow_list=allow_names,
+        dist_cache=dist_cache,
     )
     if use_cache:
         cache_manifest(instances, cache_path)
